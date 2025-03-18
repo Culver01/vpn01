@@ -33,7 +33,7 @@ Configuration.secret_key = os.getenv("YOOKASSA_SECRET_KEY")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Вместо хранения одного сообщения, используем список для каждого chat_id
+# Вместо хранения одного message_id используем список для каждого chat_id
 ephemeral_messages = {}  # ключ: chat_id, значение: список message_id
 
 async def add_ephemeral(chat_id: int, message_id: int):
@@ -101,19 +101,20 @@ async def cmd_start(message: types.Message):
 # Обработка кнопки "VPN"
 @dp.callback_query(lambda call: call.data == "get_config")
 async def process_get_config(call: types.CallbackQuery):
-    # Удаляем все предыдущие эфемерные сообщения в этом чате
+    # Удаляем все предыдущие эфемерные сообщения
     await delete_ephemeral(call.message.chat.id)
     try:
         # Пытаемся получить конфиг из кэша (базы данных)
         cached_config = await get_vpn_config(call.from_user.id)
         if cached_config:
-            await call.message.answer(
+            msg = await call.message.answer(
                 "Вставьте эту ссылку в Hiddify:\n"
                 f"<code>{cached_config}</code>\n"
                 "(Нажмите на текст ссылки, чтобы её скопировать)",
                 parse_mode="HTML",
                 reply_markup=close_keyboard()
             )
+            await add_ephemeral(call.message.chat.id, msg.message_id)
         else:
             # Если конфиг не найден, выводим сообщение о генерации
             temp_msg = await call.message.answer("Готовим вашу персональную конфигурацию...")
