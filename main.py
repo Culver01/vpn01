@@ -89,20 +89,31 @@ async def delete_ephemeral(chat_id: int):
 # Обработка команды /start – сразу выводим главное меню
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
+    await delete_ephemeral(message.chat.id)
     await message.answer("Главное меню:", reply_markup=main_menu_keyboard())
 
 # Обработка кнопки "VPN"
 @dp.callback_query(lambda call: call.data == "get_config")
 async def process_get_config(call: types.CallbackQuery):
+    # Сначала удаляем все эфемерные сообщения, чтобы закрыть вкладки
+    await delete_ephemeral(call.message.chat.id)
+    # Выводим сообщение о подготовке конфига
+    temp_msg = await call.message.answer("Готовим вашу персональную конфигурацию...")
+    ephemeral_messages[call.message.chat.id] = temp_msg.message_id
+
     try:
-        # Если конфиг для пользователя уже сгенерирован ранее, он будет возвращен из кэша (PostgreSQL)
+        # Получаем конфиг из кэша или генерируем новый, если его нет
         subscription_link = await get_vpn_config(call.from_user.id)
+        # Удаляем временное сообщение
+        await delete_ephemeral(call.message.chat.id)
+        # Отправляем сообщение с инструкциями
         await call.message.answer(
-            f"Ваш конфиг:\n<code>{subscription_link}</code>",
+            f"Вставьте эту ссылку в Hiddify: <code>{subscription_link}</code>\n(Нажмите на текст ссылки, чтобы её скопировать)",
             parse_mode="HTML",
             reply_markup=close_keyboard()
         )
     except Exception as e:
+        await delete_ephemeral(call.message.chat.id)
         await call.message.answer(
             f"Ошибка при получении конфигурации: {e}",
             reply_markup=close_keyboard()
@@ -175,7 +186,7 @@ async def process_package_selection(call: types.CallbackQuery):
         return
 
     # Глубокие ссылки для возврата в бота:
-    # Ссылка для успешной оплаты и отмены – замените your_bot_username на "rogerscriptedbot"
+    # Используем ссылку для бота "rogerscriptedbot"
     return_url = "https://t.me/rogerscriptedbot?start=payment_success"
     cancel_url = "https://t.me/rogerscriptedbot?start=payment_cancel"
     description = f"Подписка на {months} месяц(ев)"
