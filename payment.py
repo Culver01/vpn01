@@ -28,7 +28,24 @@ def create_payment_session(user_id: int, months: int, return_url: str, cancel_ur
     if not price:
         raise ValueError("Неверное количество месяцев для подписки")
 
-    # Создаем платежную сессию с использованием уникального idempotence-ключа в виде строки
+    # Формируем данные чека (receipt)
+    # Обратите внимание: поле "customer" должно содержать email или телефон покупателя.
+    # Здесь используется заглушка, замените на реальный email, если он доступен.
+    receipt = {
+        "customer": {
+            "email": "example@example.com"
+        },
+        "items": [
+            {
+                "description": f"Оплата подписки VPN на {months} месяц(ев)",
+                "quantity": "1.00",
+                "amount": {"value": price, "currency": "RUB"},
+                "vat_code": "1"  # Значение vat_code зависит от налоговой системы
+            }
+        ]
+    }
+
+    # Создаем платежную сессию с уникальным idempotence-ключом
     payment = Payment.create({
         "amount": {"value": price, "currency": "RUB"},
         "confirmation": {
@@ -37,7 +54,8 @@ def create_payment_session(user_id: int, months: int, return_url: str, cancel_ur
         },
         "capture": True,
         "description": f"Оплата подписки VPN на {months} месяц(ев)",
-        "client_reference_id": str(user_id)
+        "client_reference_id": str(user_id),
+        "receipt": receipt
     }, str(uuid.uuid4()))
 
     return payment.confirmation.confirmation_url
