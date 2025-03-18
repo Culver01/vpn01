@@ -13,7 +13,6 @@ SUBSCRIPTION_PRICING = {
     12: "3588.00"  # 12 месяцев
 }
 
-
 def create_payment_session(user_id: int, months: int, return_url: str, cancel_url: str) -> str:
     """
     Создает платежную сессию через YooKassa и возвращает URL для оплаты.
@@ -29,7 +28,6 @@ def create_payment_session(user_id: int, months: int, return_url: str, cancel_ur
         raise ValueError("Неверное количество месяцев для подписки")
 
     # Формируем данные чека (receipt)
-    # В этом примере используется тестовый email. Если у тебя есть реальный email пользователя – подставь его.
     receipt = {
         "customer": {
             "email": "example@example.com"
@@ -37,9 +35,9 @@ def create_payment_session(user_id: int, months: int, return_url: str, cancel_ur
         "items": [
             {
                 "description": f"Оплата подписки VPN на {months} месяц(ев)",
-                "quantity": 1.0,  # число, а не строка
+                "quantity": "1.00",       # Значение в виде строки
                 "amount": {"value": price, "currency": "RUB"},
-                "vat_code": 1    # число, а не строка
+                "vat_code": "1"           # Значение в виде строки
             }
         ]
     }
