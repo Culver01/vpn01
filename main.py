@@ -95,23 +95,62 @@ async def cmd_start(message: types.Message):
 # Обработка кнопки "VPN"
 @dp.callback_query(lambda call: call.data == "get_config")
 async def process_get_config(call: types.CallbackQuery):
-    # Сначала удаляем все эфемерные сообщения, чтобы закрыть вкладки
+    # Закрываем все предыдущие окна
     await delete_ephemeral(call.message.chat.id)
-    # Выводим сообщение о подготовке конфига
-    temp_msg = await call.message.answer("Готовим вашу персональную конфигурацию...")
-    ephemeral_messages[call.message.chat.id] = temp_msg.message_id
-
     try:
-        # Получаем конфиг из кэша или генерируем новый, если его нет
-        subscription_link = await get_vpn_config(call.from_user.id)
-        # Удаляем временное сообщение
-        await delete_ephemeral(call.message.chat.id)
-        # Отправляем сообщение с инструкциями
-        await call.message.answer(
-            f"Вставьте эту ссылку в Hiddify: <code>{subscription_link}</code>\n(Нажмите на текст ссылки, чтобы её скопировать)",
-            parse_mode="HTML",
-            reply_markup=close_keyboard()
-        )
+        # Пытаемся получить конфиг из кэша (базы данных)
+        cached_config = await get_vpn_config(call.from_user.id)
+        if cached_config:
+            await call.message.answer(
+                "Вставьте эту ссылку в Hiddify:\n"
+                f"<code>{cached_config}</code>\n"
+                "(Нажмите на текст ссылки, чтобы её скопировать)",
+                parse_mode="HTML",
+                reply_markup=close_keyboard()
+            )
+        else:
+            # Если конфиг не найден, выводим сообщение о генерации
+            temp_msg = await call.message.answer("Готовим вашу персональную конфигурацию...")
+            ephemeral_messages[call.message.chat.id] = temp_msg.message_id
+
+            subscription_info = await get_subscription(call.from_user.id)
+            if not subscription_info.get("active"):
+                await delete_ephemeral(call.message.chat.id)
+                sent = await call.message.answer(
+                    "Подписка не активна. Для получения конфига нажмите кнопку 'Купить подписку'.",
+                    reply_markup=subscription_action_keyboard("Купить подписку")
+                )
+                ephemeral_messages[call.message.chat.id] = sent.message_id
+                return
+
+            new_uuid = str(uuid.uuid4())
+            client_email = f"user-{call.from_user.id}@example.com"
+            server = servers_list[0]
+            loop = asyncio.get_running_loop()
+            success = await loop.run_in_executor(None, add_vpn_user, server, new_uuid, client_email)
+            await delete_ephemeral(call.message.chat.id)
+
+            if not success:
+                sent = await call.message.answer("Ошибка при добавлении VPN пользователя.", reply_markup=close_keyboard())
+                ephemeral_messages[call.message.chat.id] = sent.message_id
+                return
+
+            subscription_link = (
+                f"vless://{new_uuid}@{server['host']}:{server['server_port']}?"
+                f"type=tcp&security=reality&pbk={server['public_key']}"
+                f"&fp=chrome&sni={server['sni']}&sid=&spx=%2F&flow=xtls-rprx-vision"
+                f"#{server['name']}"
+            )
+            # Сохраняем новый конфиг в базе данных
+            await save_config(call.from_user.id, subscription_link)
+            sent = await call.message.answer(
+                "Вставьте эту ссылку в Hiddify:\n"
+                f"<code>{subscription_link}</code>\n"
+                "(Нажмите на текст ссылки, чтобы её скопировать)",
+                parse_mode="HTML",
+                reply_markup=close_keyboard()
+            )
+            ephemeral_messages[call.message.chat.id] = sent.message_id
     except Exception as e:
         await delete_ephemeral(call.message.chat.id)
         await call.message.answer(
@@ -186,7 +225,6 @@ async def process_package_selection(call: types.CallbackQuery):
         return
 
     # Глубокие ссылки для возврата в бота:
-    # Используем ссылку для бота "rogerscriptedbot"
     return_url = "https://t.me/rogerscriptedbot?start=payment_success"
     cancel_url = "https://t.me/rogerscriptedbot?start=payment_cancel"
     description = f"Подписка на {months} месяц(ев)"
