@@ -33,6 +33,23 @@ Configuration.secret_key = os.getenv("YOOKASSA_SECRET_KEY")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
+# Вместо хранения одного сообщения, используем список для каждого chat_id
+ephemeral_messages = {}  # ключ: chat_id, значение: список message_id
+
+async def add_ephemeral(chat_id: int, message_id: int):
+    if chat_id not in ephemeral_messages:
+        ephemeral_messages[chat_id] = []
+    ephemeral_messages[chat_id].append(message_id)
+
+async def delete_ephemeral(chat_id: int):
+    if chat_id in ephemeral_messages:
+        for msg_id in ephemeral_messages[chat_id]:
+            try:
+                await bot.delete_message(chat_id, msg_id)
+            except Exception as e:
+                logger.error(f"Ошибка при удалении эфемерного сообщения: {e}")
+        del ephemeral_messages[chat_id]
+
 # Главное меню – всегда остаётся в чате
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -75,17 +92,6 @@ def other_keyboard() -> InlineKeyboardMarkup:
          InlineKeyboardButton(text="Закрыть", callback_data="close")]
     ])
 
-# Глобальный словарь для хранения ID последнего эфемерного сообщения по chat_id
-ephemeral_messages = {}
-
-async def delete_ephemeral(chat_id: int):
-    if chat_id in ephemeral_messages:
-        try:
-            await bot.delete_message(chat_id, ephemeral_messages[chat_id])
-        except Exception as e:
-            logger.error(f"Ошибка при удалении эфемерного сообщения: {e}")
-        del ephemeral_messages[chat_id]
-
 # Обработка команды /start – сразу выводим главное меню
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
@@ -95,7 +101,7 @@ async def cmd_start(message: types.Message):
 # Обработка кнопки "VPN"
 @dp.callback_query(lambda call: call.data == "get_config")
 async def process_get_config(call: types.CallbackQuery):
-    # Закрываем все предыдущие окна
+    # Удаляем все предыдущие эфемерные сообщения в этом чате
     await delete_ephemeral(call.message.chat.id)
     try:
         # Пытаемся получить конфиг из кэша (базы данных)
@@ -111,7 +117,7 @@ async def process_get_config(call: types.CallbackQuery):
         else:
             # Если конфиг не найден, выводим сообщение о генерации
             temp_msg = await call.message.answer("Готовим вашу персональную конфигурацию...")
-            ephemeral_messages[call.message.chat.id] = temp_msg.message_id
+            await add_ephemeral(call.message.chat.id, temp_msg.message_id)
 
             subscription_info = await get_subscription(call.from_user.id)
             if not subscription_info.get("active"):
@@ -120,7 +126,7 @@ async def process_get_config(call: types.CallbackQuery):
                     "Подписка не активна. Для получения конфига нажмите кнопку 'Купить подписку'.",
                     reply_markup=subscription_action_keyboard("Купить подписку")
                 )
-                ephemeral_messages[call.message.chat.id] = sent.message_id
+                await add_ephemeral(call.message.chat.id, sent.message_id)
                 return
 
             new_uuid = str(uuid.uuid4())
@@ -132,7 +138,7 @@ async def process_get_config(call: types.CallbackQuery):
 
             if not success:
                 sent = await call.message.answer("Ошибка при добавлении VPN пользователя.", reply_markup=close_keyboard())
-                ephemeral_messages[call.message.chat.id] = sent.message_id
+                await add_ephemeral(call.message.chat.id, sent.message_id)
                 return
 
             subscription_link = (
@@ -150,7 +156,7 @@ async def process_get_config(call: types.CallbackQuery):
                 parse_mode="HTML",
                 reply_markup=close_keyboard()
             )
-            ephemeral_messages[call.message.chat.id] = sent.message_id
+            await add_ephemeral(call.message.chat.id, sent.message_id)
     except Exception as e:
         await delete_ephemeral(call.message.chat.id)
         await call.message.answer(
@@ -175,14 +181,14 @@ async def process_subscription(call: types.CallbackQuery):
         text = "Подписка не активна."
         button_text = "Купить подписку"
     sent = await call.message.answer(text, reply_markup=subscription_action_keyboard(button_text))
-    ephemeral_messages[call.message.chat.id] = sent.message_id
+    await add_ephemeral(call.message.chat.id, sent.message_id)
 
 # Обработка кнопки "Прочее"
 @dp.callback_query(lambda call: call.data == "other")
 async def process_other(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
     sent = await call.message.answer("Прочее", reply_markup=other_keyboard())
-    ephemeral_messages[call.message.chat.id] = sent.message_id
+    await add_ephemeral(call.message.chat.id, sent.message_id)
 
 @dp.callback_query(lambda call: call.data in ["instruction", "referral", "support"])
 async def process_other_options(call: types.CallbackQuery):
@@ -192,7 +198,7 @@ async def process_other_options(call: types.CallbackQuery):
                                          [InlineKeyboardButton(text="Закрыть", callback_data="close")]
                                      ])
                                      )
-    ephemeral_messages[call.message.chat.id] = sent.message_id
+    await add_ephemeral(call.message.chat.id, sent.message_id)
     await call.answer()
 
 # Обработка кнопки "Купить подписку" (или "Продлить подписку")
@@ -200,7 +206,7 @@ async def process_other_options(call: types.CallbackQuery):
 async def process_buy_subscription(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
     sent = await call.message.answer("Выберите тариф подписки:", reply_markup=subscription_packages_keyboard())
-    ephemeral_messages[call.message.chat.id] = sent.message_id
+    await add_ephemeral(call.message.chat.id, sent.message_id)
     try:
         await call.answer()
     except Exception as e:
@@ -224,7 +230,6 @@ async def process_package_selection(call: types.CallbackQuery):
         await call.message.answer("Неверный тариф.")
         return
 
-    # Глубокие ссылки для возврата в бота:
     return_url = "https://t.me/rogerscriptedbot?start=payment_success"
     cancel_url = "https://t.me/rogerscriptedbot?start=payment_cancel"
     description = f"Подписка на {months} месяц(ев)"
@@ -241,10 +246,10 @@ async def process_package_selection(call: types.CallbackQuery):
             f"Для оплаты перейдите по ссылке:\n{payment_url}",
             reply_markup=close_keyboard()
         )
-        ephemeral_messages[call.message.chat.id] = sent.message_id
+        await add_ephemeral(call.message.chat.id, sent.message_id)
     else:
         sent = await call.message.answer("Ошибка создания платежа. Попробуйте позже.", reply_markup=close_keyboard())
-        ephemeral_messages[call.message.chat.id] = sent.message_id
+        await add_ephemeral(call.message.chat.id, sent.message_id)
 
     try:
         await call.answer()
@@ -256,8 +261,7 @@ async def process_package_selection(call: types.CallbackQuery):
 async def process_close(call: types.CallbackQuery):
     try:
         await bot.delete_message(call.message.chat.id, call.message.message_id)
-        if call.message.chat.id in ephemeral_messages:
-            del ephemeral_messages[call.message.chat.id]
+        await delete_ephemeral(call.message.chat.id)
     except Exception as e:
         logger.error(f"Ошибка при удалении сообщения: {e}")
     await call.answer()
@@ -331,7 +335,6 @@ async def check_expired_subscriptions():
         await asyncio.sleep(43200)  # 12 часов
 
 async def main():
-    # Инициализируем подключение к PostgreSQL и таблицу vpn_configs
     from config_cache_pg import init_db
     await init_db()
     asyncio.create_task(check_expired_subscriptions())
