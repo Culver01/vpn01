@@ -2,7 +2,7 @@ import paramiko
 
 host = "31.59.185.71"  # Твой IP
 username = "vpnadmin"
-key_path = "/Users/culver01/.ssh/id_ed25519"
+key_path = "/root/.ssh/id_rsa"
 
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())

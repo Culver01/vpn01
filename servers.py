@@ -6,7 +6,7 @@ servers_list = [
         "host": "31.59.185.71",              # IP-адрес VPN-сервера
         "port": 22,                         # SSH-порт
         "username": "vpnadmin",             # Пользователь для SSH-подключения
-        "private_key_path": "/Users/culver01/.ssh/id_ed25519",  # Локальный путь к вашему SSH-ключу
+        "private_key_path": "/root/.ssh/id_rsa",  # Локальный путь к вашему SSH-ключу
 
         # Параметры Xray (REALITY)
         "protocol": "vless",
