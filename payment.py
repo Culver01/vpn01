@@ -19,36 +19,33 @@ def create_payment_session(user_id: int, months: int, return_url: str, cancel_ur
 
     :param user_id: Идентификатор пользователя Telegram.
     :param months: Количество месяцев подписки (1, 6, 12).
-    :param return_url: URL, на который будет перенаправлен пользователь после успешной оплаты.
-    :param cancel_url: URL для отмены (YooKassa использует только return_url, но оставляем параметр для совместимости).
+    :param return_url: URL, на который будет перенаправлен пользователь после оплаты.
+    :param cancel_url: URL для отмены (используется для совместимости).
     :return: URL платежной сессии.
     """
     price = SUBSCRIPTION_PRICING.get(months)
     if not price:
         raise ValueError("Неверное количество месяцев для подписки")
 
-    # Формируем данные чека (receipt)
     receipt = {
         "customer": {
-            "email": "example@example.com",
-            "phone": "+79000000000"
+            "email": "example@example.com"
         },
         "items": [
             {
                 "description": f"Оплата подписки VPN на {months} месяц(ев)",
-                "quantity": "1.00",         # количество в виде строки с двумя знаками после запятой
+                "quantity": "1.00",
                 "amount": {"value": price, "currency": "RUB"},
-                "vat_code": "1",            # Налоговый код в виде строки
-                "payment_mode": "full_payment",  # Режим оплаты
-                "payment_subject": "service"       # Тип товара: услуга
+                "vat_code": 1,  # без НДС – указываем 1 как число
+                "payment_mode": "full_payment",
+                "payment_subject": "service"
             }
-        ],
-        "sno": "osn"  # Система налогообложения (общая система)
+        ]
     }
 
-    # Создаем платежную сессию с уникальным idempotence-ключом (в виде строки)
-    payment = Payment.create({
+    payload = {
         "amount": {"value": price, "currency": "RUB"},
+        "payment_method_data": {"type": "bank_card"},
         "confirmation": {
             "type": "redirect",
             "return_url": return_url
@@ -57,6 +54,8 @@ def create_payment_session(user_id: int, months: int, return_url: str, cancel_ur
         "description": f"Оплата подписки VPN на {months} месяц(ев)",
         "client_reference_id": str(user_id),
         "receipt": receipt
-    }, str(uuid.uuid4()))
+    }
 
+    # Создаем платежную сессию с уникальным idempotence-ключом (в виде строки)
+    payment = Payment.create(payload, str(uuid.uuid4()))
     return payment.confirmation.confirmation_url
