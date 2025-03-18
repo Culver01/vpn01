@@ -32,8 +32,8 @@ def create_payment_session(user_id: int, months: int, return_url: str, cancel_ur
     # а также vat_code передается как строка.
     receipt = {
         "customer": {
-            "email": "example@example.com",  # Тестовый email. Подставьте реальный, если он есть.
-            "phone": "+79000000000"           # Тестовый номер телефона. Подставьте реальный, если он есть.
+            "email": "culver01business@icloud.com",  # Тестовый email. Подставьте реальный, если он есть.
+            "phone": "+79935970230"           # Тестовый номер телефона. Подставьте реальный, если он есть.
         },
         "items": [
             {
@@ -54,7 +54,7 @@ def create_payment_session(user_id: int, months: int, return_url: str, cancel_ur
         "payment_method_data": {"type": "bank_card"},  # Явно указываем тип метода оплаты
         "confirmation": {
             "type": "redirect",
-            "return_url": return_url  # URL, на который пользователь будет перенаправлен после оплаты
+            "return_url": "https://t.me/rogerscriptedbot?start=payment_success"  # URL, на который пользователь будет перенаправлен после оплаты
         },
         "capture": True,
         "description": f"Оплата подписки VPN на {months} месяц(ев)",
