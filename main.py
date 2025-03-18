@@ -15,6 +15,7 @@ from yookassa import Configuration, Payment
 from server_manager import add_vpn_user, remove_vpn_user
 from servers import servers_list
 from database import get_subscription, update_subscription, delete_subscription, get_expired_subscriptions
+from payment import create_payment_session  # Импортируем функцию создания платежной сессии
 
 # Загружаем переменные окружения из token.env
 load_dotenv("token.env")
@@ -31,7 +32,6 @@ logger = logging.getLogger(__name__)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-
 # Главное меню – всегда остаётся в чате
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -42,13 +42,11 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
         ]
     ])
 
-
 # Клавиатура "Закрыть" для эфемерных сообщений
 def close_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Закрыть", callback_data="close")]
     ])
-
 
 # Клавиатура для сообщения с подпиской (с кнопкой покупки/продления и "Закрыть")
 def subscription_action_keyboard(button_text: str) -> InlineKeyboardMarkup:
@@ -59,7 +57,6 @@ def subscription_action_keyboard(button_text: str) -> InlineKeyboardMarkup:
         ]
     ])
 
-
 # Клавиатура выбора пакета подписки (вертикальное расположение)
 def subscription_packages_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -67,7 +64,6 @@ def subscription_packages_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="6 месяцев (2394 ₽)", callback_data="package_6")],
         [InlineKeyboardButton(text="12 месяцев (3588 ₽)", callback_data="package_12")]
     ])
-
 
 # Клавиатура для раздела "Прочее"
 def other_keyboard() -> InlineKeyboardMarkup:
@@ -78,10 +74,8 @@ def other_keyboard() -> InlineKeyboardMarkup:
          InlineKeyboardButton(text="Закрыть", callback_data="close")]
     ])
 
-
 # Глобальный словарь для хранения ID последнего эфемерного сообщения по chat_id
 ephemeral_messages = {}
-
 
 async def delete_ephemeral(chat_id: int):
     if chat_id in ephemeral_messages:
@@ -91,38 +85,14 @@ async def delete_ephemeral(chat_id: int):
             logger.error(f"Ошибка при удалении эфемерного сообщения: {e}")
         del ephemeral_messages[chat_id]
 
-
-# Функция создания платежа через YooKassa
-async def create_payment(amount: float, currency: str, return_url: str, description: str) -> dict:
-    try:
-        payment = Payment.create({
-            "amount": {
-                "value": f"{amount:.2f}",
-                "currency": currency
-            },
-            "confirmation": {
-                "type": "redirect",
-                "return_url": return_url
-            },
-            "capture": True,
-            "description": description
-        })
-        return payment.to_dict()
-    except Exception as e:
-        logger.error(f"Ошибка создания платежа: {e}")
-        return {}
-
-
 # Обработка команды /start – сразу выводим главное меню
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     await message.answer("Главное меню:", reply_markup=main_menu_keyboard())
 
-
 # Обработка кнопки "VPN"
 @dp.callback_query(lambda call: call.data == "get_config")
 async def process_get_config(call: types.CallbackQuery):
-    # Отправляем сообщение "Генерируем ссылку..."
     temp_msg = await call.message.answer("Генерируем ссылку...")
     ephemeral_messages[call.message.chat.id] = temp_msg.message_id
 
@@ -141,7 +111,6 @@ async def process_get_config(call: types.CallbackQuery):
     server = servers_list[0]
     loop = asyncio.get_running_loop()
     success = await loop.run_in_executor(None, add_vpn_user, server, new_uuid, client_email)
-    # Удаляем сообщение "Генерируем ссылку..."
     await delete_ephemeral(call.message.chat.id)
 
     if not success:
@@ -162,7 +131,6 @@ async def process_get_config(call: types.CallbackQuery):
     )
     ephemeral_messages[call.message.chat.id] = sent.message_id
 
-
 # Обработка кнопки "Подписка"
 @dp.callback_query(lambda call: call.data == "subscription")
 async def process_subscription(call: types.CallbackQuery):
@@ -182,14 +150,12 @@ async def process_subscription(call: types.CallbackQuery):
     sent = await call.message.answer(text, reply_markup=subscription_action_keyboard(button_text))
     ephemeral_messages[call.message.chat.id] = sent.message_id
 
-
 # Обработка кнопки "Прочее"
 @dp.callback_query(lambda call: call.data == "other")
 async def process_other(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
     sent = await call.message.answer("Прочее", reply_markup=other_keyboard())
     ephemeral_messages[call.message.chat.id] = sent.message_id
-
 
 @dp.callback_query(lambda call: call.data in ["instruction", "referral", "support"])
 async def process_other_options(call: types.CallbackQuery):
@@ -202,7 +168,6 @@ async def process_other_options(call: types.CallbackQuery):
     ephemeral_messages[call.message.chat.id] = sent.message_id
     await call.answer()
 
-
 # Обработка кнопки "Купить подписку" (или "Продлить подписку")
 @dp.callback_query(lambda call: call.data == "buy_subscription")
 async def process_buy_subscription(call: types.CallbackQuery):
@@ -213,7 +178,6 @@ async def process_buy_subscription(call: types.CallbackQuery):
         await call.answer()
     except Exception as e:
         logger.error(f"Ошибка при ответе на callback: {e}")
-
 
 # Обработка выбора тарифа подписки
 @dp.callback_query(lambda call: call.data.startswith("package_"))
@@ -233,24 +197,34 @@ async def process_package_selection(call: types.CallbackQuery):
         await call.message.answer("Неверный тариф.")
         return
 
-    return_url = "https://your-return-url.example.com"  # Замените на ваш реальный URL возврата
+    # Используем глубокие ссылки для возврата в бота:
+    # Замените your_bot_username на имя вашего бота (без символа @)
+    return_url = "https://t.me/rogerscripted?start=payment_success"
+    cancel_url = "https://t.me/rogerscripted?start=payment_cancel"
     description = f"Подписка на {months} месяц(ев)"
-    payment_data = await create_payment(amount, "RUB", return_url, description)
-    confirmation_url = payment_data.get("confirmation", {}).get("confirmation_url")
-    if confirmation_url:
+
+    # Так как create_payment_session является синхронной функцией, запускаем её в executor:
+    loop = asyncio.get_running_loop()
+    try:
+        payment_url = await loop.run_in_executor(None, create_payment_session, call.from_user.id, months, return_url, cancel_url)
+    except Exception as e:
+        logger.error(f"Ошибка создания платежной сессии: {e}")
+        payment_url = None
+
+    if payment_url:
         sent = await call.message.answer(
-            f"Для оплаты перейдите по ссылке:\n{confirmation_url}",
+            f"Для оплаты перейдите по ссылке:\n{payment_url}",
             reply_markup=close_keyboard()
         )
         ephemeral_messages[call.message.chat.id] = sent.message_id
     else:
         sent = await call.message.answer("Ошибка создания платежа. Попробуйте позже.", reply_markup=close_keyboard())
         ephemeral_messages[call.message.chat.id] = sent.message_id
+
     try:
         await call.answer()
     except Exception as e:
         logger.error(f"Ошибка при ответе на callback: {e}")
-
 
 # Обработка кнопки "Закрыть"
 @dp.callback_query(lambda call: call.data == "close")
@@ -262,7 +236,6 @@ async def process_close(call: types.CallbackQuery):
     except Exception as e:
         logger.error(f"Ошибка при удалении сообщения: {e}")
     await call.answer()
-
 
 # Админ-команды для управления подписками
 @dp.message(Command("subadd"))
@@ -294,7 +267,6 @@ async def cmd_subadd(message: types.Message):
     else:
         await message.answer("Ошибка при выдаче подписки.")
 
-
 @dp.message(Command("subdel"))
 async def cmd_subdel(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -315,7 +287,6 @@ async def cmd_subdel(message: types.Message):
     else:
         await message.answer("Ошибка при удалении подписки.")
 
-
 # Фоновая задача для проверки истекших подписок (каждые 12 часов)
 async def check_expired_subscriptions():
     while True:
@@ -334,11 +305,9 @@ async def check_expired_subscriptions():
             logger.error(f"Ошибка проверки истекших подписок: {e}")
         await asyncio.sleep(43200)  # 12 часов
 
-
 async def main():
     asyncio.create_task(check_expired_subscriptions())
     await dp.start_polling(bot)
-
 
 if __name__ == "__main__":
     asyncio.run(main())
