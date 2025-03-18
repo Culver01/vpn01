@@ -15,7 +15,11 @@ from yookassa import Configuration, Payment
 from server_manager import add_vpn_user, remove_vpn_user
 from servers import servers_list
 from database import get_subscription, update_subscription, delete_subscription, get_expired_subscriptions
-from payment import create_payment_session  # Импортируем функцию создания платежной сессии
+from payment import create_payment_session  # функция создания платежной сессии из payment.py
+from config_provider import get_vpn_config   # функция выдачи VPN-конфига из config_provider.py
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Загружаем переменные окружения из token.env
 load_dotenv("token.env")
@@ -25,9 +29,6 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 # Настройка YooKassa
 Configuration.account_id = os.getenv("YOOKASSA_SHOP_ID")
 Configuration.secret_key = os.getenv("YOOKASSA_SECRET_KEY")
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -93,43 +94,19 @@ async def cmd_start(message: types.Message):
 # Обработка кнопки "VPN"
 @dp.callback_query(lambda call: call.data == "get_config")
 async def process_get_config(call: types.CallbackQuery):
-    temp_msg = await call.message.answer("Генерируем ссылку...")
-    ephemeral_messages[call.message.chat.id] = temp_msg.message_id
-
-    subscription_info = await get_subscription(call.from_user.id)
-    if not subscription_info.get("active"):
-        await delete_ephemeral(call.message.chat.id)
-        sent = await call.message.answer(
-            "Подписка не активна. Для получения конфига нажмите кнопку 'Купить подписку'.",
-            reply_markup=subscription_action_keyboard("Купить подписку")
+    try:
+        # Если конфиг для пользователя уже сгенерирован ранее, он будет возвращен из кэша (PostgreSQL)
+        subscription_link = await get_vpn_config(call.from_user.id)
+        await call.message.answer(
+            f"Ваш конфиг:\n<code>{subscription_link}</code>",
+            parse_mode="HTML",
+            reply_markup=close_keyboard()
         )
-        ephemeral_messages[call.message.chat.id] = sent.message_id
-        return
-
-    new_uuid = str(uuid.uuid4())
-    client_email = f"user-{call.from_user.id}@example.com"
-    server = servers_list[0]
-    loop = asyncio.get_running_loop()
-    success = await loop.run_in_executor(None, add_vpn_user, server, new_uuid, client_email)
-    await delete_ephemeral(call.message.chat.id)
-
-    if not success:
-        sent = await call.message.answer("Ошибка при добавлении VPN пользователя.", reply_markup=close_keyboard())
-        ephemeral_messages[call.message.chat.id] = sent.message_id
-        return
-
-    subscription_link = (
-        f"vless://{new_uuid}@{server['host']}:{server['server_port']}?"
-        f"type=tcp&security=reality&pbk={server['public_key']}"
-        f"&fp=chrome&sni={server['sni']}&sid=&spx=%2F&flow=xtls-rprx-vision"
-        f"#{server['name']}"
-    )
-    sent = await call.message.answer(
-        f"Ваша подписочная ссылка:\n<code>{subscription_link}</code>",
-        parse_mode="HTML",
-        reply_markup=close_keyboard()
-    )
-    ephemeral_messages[call.message.chat.id] = sent.message_id
+    except Exception as e:
+        await call.message.answer(
+            f"Ошибка при получении конфигурации: {e}",
+            reply_markup=close_keyboard()
+        )
 
 # Обработка кнопки "Подписка"
 @dp.callback_query(lambda call: call.data == "subscription")
@@ -197,13 +174,12 @@ async def process_package_selection(call: types.CallbackQuery):
         await call.message.answer("Неверный тариф.")
         return
 
-    # Используем глубокие ссылки для возврата в бота:
-    # Замените your_bot_username на имя вашего бота (без символа @)
-    return_url = "https://t.me/rogerscripted?start=payment_success"
-    cancel_url = "https://t.me/rogerscripted?start=payment_cancel"
+    # Глубокие ссылки для возврата в бота:
+    # Ссылка для успешной оплаты и отмены – замените your_bot_username на "rogerscriptedbot"
+    return_url = "https://t.me/rogerscriptedbot?start=payment_success"
+    cancel_url = "https://t.me/rogerscriptedbot?start=payment_cancel"
     description = f"Подписка на {months} месяц(ев)"
 
-    # Так как create_payment_session является синхронной функцией, запускаем её в executor:
     loop = asyncio.get_running_loop()
     try:
         payment_url = await loop.run_in_executor(None, create_payment_session, call.from_user.id, months, return_url, cancel_url)
@@ -306,6 +282,9 @@ async def check_expired_subscriptions():
         await asyncio.sleep(43200)  # 12 часов
 
 async def main():
+    # Инициализируем подключение к PostgreSQL и таблицу vpn_configs
+    from config_cache_pg import init_db
+    await init_db()
     asyncio.create_task(check_expired_subscriptions())
     await dp.start_polling(bot)
 
