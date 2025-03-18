@@ -28,21 +28,23 @@ def create_payment_session(user_id: int, months: int, return_url: str, cancel_ur
         raise ValueError("Неверное количество месяцев для подписки")
 
     # Формируем данные чека (receipt)
+    # Добавляем и email, и номер телефона, что может удовлетворить требования YooKassa.
     receipt = {
         "customer": {
-            "email": "example@example.com"
+            "email": "example@example.com",
+            "phone": "+79000000000"
         },
         "items": [
             {
                 "description": f"Оплата подписки VPN на {months} месяц(ев)",
-                "quantity": "1.00",       # Значение в виде строки
+                "quantity": "1.00",  # Строковое значение с двумя знаками после запятой
                 "amount": {"value": price, "currency": "RUB"},
-                "vat_code": "1"           # Значение в виде строки
+                "vat_code": "1"      # Строка
             }
         ]
     }
 
-    # Создаем платежную сессию с уникальным idempotence-ключом
+    # Создаем платежную сессию с уникальным idempotence-ключом (в виде строки)
     payment = Payment.create({
         "amount": {"value": price, "currency": "RUB"},
         "confirmation": {
