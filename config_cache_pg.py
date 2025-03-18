@@ -8,7 +8,7 @@ pool = None
 async def init_db():
     """
     Инициализирует пул подключений к PostgreSQL, используя DATABASE_URL,
-    и создаёт таблицу vpn_configs, если она ещё не существует.
+    и создает таблицу public.vpn_configs, если она еще не существует.
     """
     global pool
     database_url = os.getenv("DATABASE_URL")
@@ -17,7 +17,7 @@ async def init_db():
     pool = await asyncpg.create_pool(database_url)
     async with pool.acquire() as conn:
         await conn.execute("""
-            CREATE TABLE IF NOT EXISTS vpn_configs (
+            CREATE TABLE IF NOT EXISTS public.vpn_configs (
                 user_id BIGINT PRIMARY KEY,
                 subscription_link TEXT NOT NULL,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -26,11 +26,11 @@ async def init_db():
 
 async def get_active_config(user_id: int) -> str:
     """
-    Возвращает сохранённую ссылку (subscription_link) для данного user_id, если она существует.
+    Возвращает сохраненную ссылку (subscription_link) для данного user_id, если она существует.
     """
     global pool
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT subscription_link FROM vpn_configs WHERE user_id = $1", user_id)
+        row = await conn.fetchrow("SELECT subscription_link FROM public.vpn_configs WHERE user_id = $1", user_id)
     if row:
         return row["subscription_link"]
     return None
@@ -42,7 +42,7 @@ async def save_config(user_id: int, subscription_link: str):
     global pool
     async with pool.acquire() as conn:
         await conn.execute("""
-            INSERT INTO vpn_configs (user_id, subscription_link, created_at)
+            INSERT INTO public.vpn_configs (user_id, subscription_link, created_at)
             VALUES ($1, $2, NOW())
             ON CONFLICT (user_id)
             DO UPDATE SET subscription_link = EXCLUDED.subscription_link, created_at = NOW();
