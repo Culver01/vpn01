@@ -29,8 +29,7 @@ def create_payment_session(user_id: int, months: int, return_url: str, cancel_ur
         raise ValueError("Неверное количество месяцев для подписки")
 
     # Формируем данные чека (receipt)
-    # Обратите внимание: поле "customer" должно содержать email или телефон покупателя.
-    # Здесь используется заглушка, замените на реальный email, если он доступен.
+    # В этом примере используется тестовый email. Если у тебя есть реальный email пользователя – подставь его.
     receipt = {
         "customer": {
             "email": "example@example.com"
@@ -38,9 +37,9 @@ def create_payment_session(user_id: int, months: int, return_url: str, cancel_ur
         "items": [
             {
                 "description": f"Оплата подписки VPN на {months} месяц(ев)",
-                "quantity": "1.00",
+                "quantity": 1.0,  # число, а не строка
                 "amount": {"value": price, "currency": "RUB"},
-                "vat_code": "1"  # Значение vat_code зависит от налоговой системы
+                "vat_code": 1    # число, а не строка
             }
         ]
     }
