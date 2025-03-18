@@ -36,13 +36,14 @@ def create_payment_session(user_id: int, months: int, return_url: str, cancel_ur
         "items": [
             {
                 "description": f"Оплата подписки VPN на {months} месяц(ев)",
-                "quantity": "1.00",         # строка с двумя знаками после запятой
+                "quantity": "1.00",         # количество в виде строки с двумя знаками после запятой
                 "amount": {"value": price, "currency": "RUB"},
-                "vat_code": "1",            # обычно передается как строка
-                "payment_mode": "full_payment",  # режим оплаты (полная оплата)
-                "payment_subject": "service"       # тип товара (услуга)
+                "vat_code": "1",            # Налоговый код в виде строки
+                "payment_mode": "full_payment",  # Режим оплаты
+                "payment_subject": "service"       # Тип товара: услуга
             }
-        ]
+        ],
+        "sno": "osn"  # Система налогообложения (общая система)
     }
 
     # Создаем платежную сессию с уникальным idempotence-ключом (в виде строки)
