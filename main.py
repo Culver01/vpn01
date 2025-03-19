@@ -83,19 +83,18 @@ def other_keyboard() -> InlineKeyboardMarkup:
          InlineKeyboardButton(text="Закрыть", callback_data="close")]
     ])
 
-# Новая клавиатура для окна VPN при отсутствии подписки.
-# Содержит кнопки "Планы", "Преимущества" и "назад"
+# Клавиатура для окна VPN при отсутствии подписки.
+# Содержит кнопки "Планы" и "Преимущества" (без кнопки "назад")
 def vpn_no_subscription_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Планы", callback_data="buy_subscription")],
-        [InlineKeyboardButton(text="Преимущества", callback_data="advantages")],
-        [InlineKeyboardButton(text="назад", callback_data="back")]
+        [InlineKeyboardButton(text="Преимущества", callback_data="advantages")]
     ])
 
-# Клавиатура с единственной кнопкой "назад"
-def back_keyboard() -> InlineKeyboardMarkup:
+# Клавиатура с единственной кнопкой "назад", которая возвращает в VPN-окно
+def vpn_back_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="назад", callback_data="back")]
+        [InlineKeyboardButton(text="назад", callback_data="back_to_vpn")]
     ])
 
 @dp.message(Command("start"))
@@ -109,7 +108,7 @@ async def process_get_config(call: types.CallbackQuery):
     try:
         # Проверяем статус подписки
         subscription_info = await get_subscription(call.from_user.id)
-        # Если подписка не активна, выводим подробное сообщение о VPN с новой клавиатурой
+        # Если подписка не активна, выводим подробное сообщение о VPN с обновлённой клавиатурой
         if not subscription_info.get("active"):
             vpn_text = (
                 "VPN — это простой способ обходить любые блокировки в интернете и свободно открывать заблокированные сайты и приложения, "
@@ -181,21 +180,30 @@ async def process_get_config(call: types.CallbackQuery):
 async def process_advantages(call: types.CallbackQuery):
     """
     Обработчик кнопки "Преимущества".
-    Выводит сообщение с информацией о преимуществах VPN и клавиатуру с кнопкой "назад".
+    Выводит сообщение с информацией о преимуществах VPN и клавиатуру с кнопкой "назад",
+    которая возвращает пользователя в предыдущее VPN-окно.
     """
     await delete_ephemeral(call.message.chat.id)
-    sent = await call.message.answer("Тут будут преимущества", reply_markup=back_keyboard())
+    sent = await call.message.answer("Тут будут преимущества", reply_markup=vpn_back_keyboard())
     await add_ephemeral(call.message.chat.id, sent.message_id)
     await call.answer()
 
-@dp.callback_query(lambda call: call.data == "back")
-async def process_back(call: types.CallbackQuery):
+@dp.callback_query(lambda call: call.data == "back_to_vpn")
+async def process_back_to_vpn(call: types.CallbackQuery):
     """
-    Обработчик кнопки "назад".
-    Возвращает пользователя в главное меню.
+    Обработчик кнопки "назад" в меню преимуществ.
+    Возвращает пользователя в окно с информацией о VPN.
     """
     await delete_ephemeral(call.message.chat.id)
-    await call.message.answer("Главное меню:", reply_markup=main_menu_keyboard())
+    # Повторно выводим VPN-информацию
+    vpn_text = (
+        "VPN — это простой способ обходить любые блокировки в интернете и свободно открывать заблокированные сайты и приложения, "
+        "которые стали недоступны в России. Он защищает вас от слежки, скрывая ваше реальное местоположение и личные данные. "
+        "С VPN вы снова получаете доступ к привычным сервисам, соцсетям и новостным сайтам, не боясь, что за вами следят или контролируют ваш трафик.\n\n"
+        "Подключите VPN сейчас и верните себе свободу и безопасность в интернете!"
+    )
+    sent = await call.message.answer(vpn_text, reply_markup=vpn_no_subscription_keyboard())
+    await add_ephemeral(call.message.chat.id, sent.message_id)
     await call.answer()
 
 @dp.callback_query(lambda call: call.data == "new_config_confirm")
