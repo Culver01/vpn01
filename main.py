@@ -83,6 +83,21 @@ def other_keyboard() -> InlineKeyboardMarkup:
          InlineKeyboardButton(text="Закрыть", callback_data="close")]
     ])
 
+# Новая клавиатура для окна VPN при отсутствии подписки.
+# Содержит кнопки "Планы", "Преимущества" и "назад"
+def vpn_no_subscription_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Планы", callback_data="buy_subscription")],
+        [InlineKeyboardButton(text="Преимущества", callback_data="advantages")],
+        [InlineKeyboardButton(text="назад", callback_data="back")]
+    ])
+
+# Клавиатура с единственной кнопкой "назад"
+def back_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="назад", callback_data="back")]
+    ])
+
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     await delete_ephemeral(message.chat.id)
@@ -92,18 +107,21 @@ async def cmd_start(message: types.Message):
 async def process_get_config(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
     try:
-        # Сначала проверяем статус подписки
+        # Проверяем статус подписки
         subscription_info = await get_subscription(call.from_user.id)
+        # Если подписка не активна, выводим подробное сообщение о VPN с новой клавиатурой
         if not subscription_info.get("active"):
-            await delete_ephemeral(call.message.chat.id)
-            sent = await call.message.answer(
-                "Подписка не активна. Для получения конфига нажмите кнопку 'Купить подписку'.",
-                reply_markup=subscription_action_keyboard("Купить подписку")
+            vpn_text = (
+                "VPN — это простой способ обходить любые блокировки в интернете и свободно открывать заблокированные сайты и приложения, "
+                "которые стали недоступны в России. Он защищает вас от слежки, скрывая ваше реальное местоположение и личные данные. "
+                "С VPN вы снова получаете доступ к привычным сервисам, соцсетям и новостным сайтам, не боясь, что за вами следят или контролируют ваш трафик.\n\n"
+                "Подключите VPN сейчас и верните себе свободу и безопасность в интернете!"
             )
+            sent = await call.message.answer(vpn_text, reply_markup=vpn_no_subscription_keyboard())
             await add_ephemeral(call.message.chat.id, sent.message_id)
             return
 
-        # Теперь, если подписка активна, проверяем кэш
+        # Если подписка активна, продолжаем обычную обработку запроса
         cached_config = await get_vpn_config(call.from_user.id)
         if cached_config:
             kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -158,6 +176,27 @@ async def process_get_config(call: types.CallbackQuery):
             f"Ошибка при получении конфигурации: {e}",
             reply_markup=close_keyboard()
         )
+
+@dp.callback_query(lambda call: call.data == "advantages")
+async def process_advantages(call: types.CallbackQuery):
+    """
+    Обработчик кнопки "Преимущества".
+    Выводит сообщение с информацией о преимуществах VPN и клавиатуру с кнопкой "назад".
+    """
+    await delete_ephemeral(call.message.chat.id)
+    sent = await call.message.answer("Тут будут преимущества", reply_markup=back_keyboard())
+    await add_ephemeral(call.message.chat.id, sent.message_id)
+    await call.answer()
+
+@dp.callback_query(lambda call: call.data == "back")
+async def process_back(call: types.CallbackQuery):
+    """
+    Обработчик кнопки "назад".
+    Возвращает пользователя в главное меню.
+    """
+    await delete_ephemeral(call.message.chat.id)
+    await call.message.answer("Главное меню:", reply_markup=main_menu_keyboard())
+    await call.answer()
 
 @dp.callback_query(lambda call: call.data == "new_config_confirm")
 async def confirm_prompt(call: types.CallbackQuery):
