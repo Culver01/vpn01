@@ -47,10 +47,17 @@ async def delete_ephemeral(chat_id: int):
                 logger.error(f"Ошибка при удалении эфемерного сообщения: {e}")
         del ephemeral_messages[chat_id]
 
-def main_menu_keyboard() -> InlineKeyboardMarkup:
+# Асинхронная функция для динамического формирования главного меню.
+# Если у пользователя нет активной подписки, кнопка "Подписка" заменяется на "Активация".
+async def build_main_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    subscription_info = await get_subscription(user_id)
+    if subscription_info.get("active"):
+        subscription_button = InlineKeyboardButton(text="Подписка", callback_data="subscription")
+    else:
+        subscription_button = InlineKeyboardButton(text="Активация", callback_data="activation")
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="VPN", callback_data="get_config"),
-         InlineKeyboardButton(text="Подписка", callback_data="subscription"),
+         subscription_button,
          InlineKeyboardButton(text="Прочее", callback_data="other")]
     ])
 
@@ -100,7 +107,19 @@ def vpn_back_keyboard() -> InlineKeyboardMarkup:
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     await delete_ephemeral(message.chat.id)
-    await message.answer("Главное меню:", reply_markup=main_menu_keyboard())
+    kb = await build_main_menu_keyboard(message.from_user.id)
+    await message.answer("Главное меню:", reply_markup=kb)
+
+@dp.callback_query(lambda call: call.data == "activation")
+async def process_activation(call: types.CallbackQuery):
+    """
+    Обработчик кнопки "Активация".
+    При нажатии сразу выводит меню выбора тарифного плана с текстом "Выберите план".
+    """
+    await delete_ephemeral(call.message.chat.id)
+    sent = await call.message.answer("Выберите план", reply_markup=subscription_packages_keyboard())
+    await add_ephemeral(call.message.chat.id, sent.message_id)
+    await call.answer()
 
 @dp.callback_query(lambda call: call.data == "get_config")
 async def process_get_config(call: types.CallbackQuery):
@@ -195,7 +214,6 @@ async def process_back_to_vpn(call: types.CallbackQuery):
     Возвращает пользователя в окно с информацией о VPN.
     """
     await delete_ephemeral(call.message.chat.id)
-    # Повторно выводим VPN-информацию
     vpn_text = (
         "VPN — это простой способ обходить любые блокировки в интернете и свободно открывать заблокированные сайты и приложения, "
         "которые стали недоступны в России. Он защищает вас от слежки, скрывая ваше реальное местоположение и личные данные. "
