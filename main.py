@@ -12,26 +12,24 @@ from yookassa import Configuration
 from server_manager import add_vpn_user, remove_vpn_user
 from servers import servers_list
 from database import get_subscription, update_subscription, delete_subscription, get_expired_subscriptions
-from payment import create_payment_session  # Функция создания платежной сессии
-from config_provider import get_vpn_config, delete_vpn_config  # Функции для кэширования VPN-конфигов
+from payment import create_payment_session
+from config_provider import get_vpn_config, delete_vpn_config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Загружаем переменные окружения из token.env
 load_dotenv("token.env")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
-# Настройка YooKassa
 Configuration.account_id = os.getenv("YOOKASSA_SHOP_ID")
 Configuration.secret_key = os.getenv("YOOKASSA_SECRET_KEY")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Используем словарь, где для каждого chat_id хранится список message_id эфемерных сообщений
-ephemeral_messages = {}  # ключ: chat_id, значение: список message_id
+# Используем словарь для хранения списка ID эфемерных сообщений для каждого чата
+ephemeral_messages = {}
 
 async def add_ephemeral(chat_id: int, message_id: int):
     if chat_id not in ephemeral_messages:
@@ -47,32 +45,24 @@ async def delete_ephemeral(chat_id: int):
                 logger.error(f"Ошибка при удалении эфемерного сообщения: {e}")
         del ephemeral_messages[chat_id]
 
-# Главное меню
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="VPN", callback_data="get_config"),
-            InlineKeyboardButton(text="Подписка", callback_data="subscription"),
-            InlineKeyboardButton(text="Прочее", callback_data="other")
-        ]
+        [InlineKeyboardButton(text="VPN", callback_data="get_config"),
+         InlineKeyboardButton(text="Подписка", callback_data="subscription"),
+         InlineKeyboardButton(text="Прочее", callback_data="other")]
     ])
 
-# Клавиатура "Закрыть"
 def close_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Закрыть", callback_data="close")]
     ])
 
-# Клавиатура для подписки
 def subscription_action_keyboard(button_text: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text=button_text, callback_data="buy_subscription"),
-            InlineKeyboardButton(text="Закрыть", callback_data="close")
-        ]
+        [InlineKeyboardButton(text=button_text, callback_data="buy_subscription"),
+         InlineKeyboardButton(text="Закрыть", callback_data="close")]
     ])
 
-# Клавиатура выбора тарифа подписки
 def subscription_packages_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="1 месяц (490 ₽)", callback_data="package_1")],
@@ -80,7 +70,6 @@ def subscription_packages_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="12 месяцев (3588 ₽)", callback_data="package_12")]
     ])
 
-# Клавиатура для раздела "Прочее"
 def other_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Инструкция", callback_data="instruction")],
@@ -89,18 +78,15 @@ def other_keyboard() -> InlineKeyboardMarkup:
          InlineKeyboardButton(text="Закрыть", callback_data="close")]
     ])
 
-# Обработка команды /start – выводим главное меню
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     await delete_ephemeral(message.chat.id)
     await message.answer("Главное меню:", reply_markup=main_menu_keyboard())
 
-# Обработка кнопки "VPN"
 @dp.callback_query(lambda call: call.data == "get_config")
 async def process_get_config(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
     try:
-        # Получаем сохранённый конфиг или генерируем новый, если его нет
         cached_config = await get_vpn_config(call.from_user.id)
         if cached_config:
             kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -164,7 +150,6 @@ async def process_get_config(call: types.CallbackQuery):
             reply_markup=close_keyboard()
         )
 
-# Обработка кнопки "Новая ссылка" – форсированная регенерация конфигурации
 @dp.callback_query(lambda call: call.data == "new_config")
 async def process_new_config(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
@@ -177,7 +162,6 @@ async def process_new_config(call: types.CallbackQuery):
             reply_markup=close_keyboard()
         )
 
-# Обработка кнопки "Подписка"
 @dp.callback_query(lambda call: call.data == "subscription")
 async def process_subscription(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
@@ -196,7 +180,6 @@ async def process_subscription(call: types.CallbackQuery):
     sent = await call.message.answer(text, reply_markup=subscription_action_keyboard(button_text))
     await add_ephemeral(call.message.chat.id, sent.message_id)
 
-# Обработка кнопки "Прочее"
 @dp.callback_query(lambda call: call.data == "other")
 async def process_other(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
@@ -214,7 +197,6 @@ async def process_other_options(call: types.CallbackQuery):
     await add_ephemeral(call.message.chat.id, sent.message_id)
     await call.answer()
 
-# Обработка кнопки "Купить подписку" (или "Продлить подписку")
 @dp.callback_query(lambda call: call.data == "buy_subscription")
 async def process_buy_subscription(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
@@ -225,7 +207,6 @@ async def process_buy_subscription(call: types.CallbackQuery):
     except Exception as e:
         logger.error(f"Ошибка при ответе на callback: {e}")
 
-# Обработка выбора тарифа подписки
 @dp.callback_query(lambda call: call.data.startswith("package_"))
 async def process_package_selection(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
@@ -269,7 +250,6 @@ async def process_package_selection(call: types.CallbackQuery):
     except Exception as e:
         logger.error(f"Ошибка при ответе на callback: {e}")
 
-# Обработка кнопки "Закрыть"
 @dp.callback_query(lambda call: call.data == "close")
 async def process_close(call: types.CallbackQuery):
     try:
@@ -279,7 +259,6 @@ async def process_close(call: types.CallbackQuery):
         logger.error(f"Ошибка при удалении сообщения: {e}")
     await call.answer()
 
-# Админ-команды для управления подписками
 @dp.message(Command("subadd"))
 async def cmd_subadd(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -329,7 +308,6 @@ async def cmd_subdel(message: types.Message):
     else:
         await message.answer("Ошибка при удалении подписки.")
 
-# Фоновая задача для проверки истекших подписок (каждые 12 часов)
 async def check_expired_subscriptions():
     while True:
         try:
