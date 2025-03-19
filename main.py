@@ -18,20 +18,18 @@ from config_provider import get_vpn_config, delete_vpn_config
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Загружаем переменные окружения из token.env
 load_dotenv("token.env")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
-# Настройка YooKassa
 Configuration.account_id = os.getenv("YOOKASSA_SHOP_ID")
 Configuration.secret_key = os.getenv("YOOKASSA_SECRET_KEY")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Для хранения списка ID эфемерных сообщений для каждого чата
-ephemeral_messages = {}  # key: chat_id, value: list of message_id
+# Хранение списка ID эфемерных сообщений для каждого чата
+ephemeral_messages = {}  # ключ: chat_id, значение: список message_id
 
 async def add_ephemeral(chat_id: int, message_id: int):
     if chat_id not in ephemeral_messages:
@@ -44,6 +42,9 @@ async def delete_ephemeral(chat_id: int):
             try:
                 await bot.delete_message(chat_id, msg_id)
             except Exception as e:
+                # Если сообщение уже удалено, игнорируем ошибку
+                if "message to delete not found" in str(e):
+                    continue
                 logger.error(f"Ошибка при удалении эфемерного сообщения: {e}")
         del ephemeral_messages[chat_id]
 
@@ -91,7 +92,6 @@ async def process_get_config(call: types.CallbackQuery):
     try:
         cached_config = await get_vpn_config(call.from_user.id)
         if cached_config:
-            # Клавиатура с двумя кнопками: "Новая ссылка" и "Закрыть"
             kb = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="Новая ссылка", callback_data="new_config_confirm"),
                  InlineKeyboardButton(text="Закрыть", callback_data="close")]
@@ -155,7 +155,6 @@ async def process_get_config(call: types.CallbackQuery):
             reply_markup=close_keyboard()
         )
 
-# Обработка подтверждения генерации новой ссылки (открытие окна с подтверждением)
 @dp.callback_query(lambda call: call.data == "new_config_confirm")
 async def confirm_prompt(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
@@ -170,12 +169,15 @@ async def confirm_prompt(call: types.CallbackQuery):
     await add_ephemeral(call.message.chat.id, msg.message_id)
     await call.answer()
 
-# Обработка выбора "Продолжить" – генерируем новую ссылку
 @dp.callback_query(lambda call: call.data == "confirm_new_config")
 async def process_confirm_new_config(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
     try:
+        # Сначала показываем сообщение о генерации новой ссылки
+        msg = await call.message.answer("Готовим вашу персональную ссылку...")
+        await add_ephemeral(call.message.chat.id, msg.message_id)
         await delete_vpn_config(call.from_user.id)
+        # После этого генерируем и показываем новую конфигурацию
         await process_get_config(call)
     except Exception as e:
         await call.message.answer(
@@ -184,7 +186,6 @@ async def process_confirm_new_config(call: types.CallbackQuery):
         )
     await call.answer()
 
-# Обработка выбора "Назад" – возвращаем предыдущий экран с конфигурацией
 @dp.callback_query(lambda call: call.data == "cancel_new_config")
 async def process_cancel_new_config(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
