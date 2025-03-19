@@ -28,6 +28,7 @@ Configuration.secret_key = os.getenv("YOOKASSA_SECRET_KEY")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
+# Словарь для хранения списка ID эфемерных сообщений для каждого чата
 ephemeral_messages = {}  # key: chat_id, value: list of message_id
 
 async def add_ephemeral(chat_id: int, message_id: int):
@@ -88,6 +89,18 @@ async def cmd_start(message: types.Message):
 async def process_get_config(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
     try:
+        # Сначала проверяем статус подписки
+        subscription_info = await get_subscription(call.from_user.id)
+        if not subscription_info.get("active"):
+            await delete_ephemeral(call.message.chat.id)
+            sent = await call.message.answer(
+                "Подписка не активна. Для получения конфига нажмите кнопку 'Купить подписку'.",
+                reply_markup=subscription_action_keyboard("Купить подписку")
+            )
+            await add_ephemeral(call.message.chat.id, sent.message_id)
+            return
+
+        # Теперь, если подписка активна, проверяем кэш
         cached_config = await get_vpn_config(call.from_user.id)
         if cached_config:
             kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -105,16 +118,6 @@ async def process_get_config(call: types.CallbackQuery):
         else:
             temp_msg = await call.message.answer("Готовим вашу персональную конфигурацию...")
             await add_ephemeral(call.message.chat.id, temp_msg.message_id)
-
-            subscription_info = await get_subscription(call.from_user.id)
-            if not subscription_info.get("active"):
-                await delete_ephemeral(call.message.chat.id)
-                sent = await call.message.answer(
-                    "Подписка не активна. Для получения конфига нажмите кнопку 'Купить подписку'.",
-                    reply_markup=subscription_action_keyboard("Купить подписку")
-                )
-                await add_ephemeral(call.message.chat.id, sent.message_id)
-                return
 
             new_uuid = str(uuid.uuid4())
             client_email = f"user-{call.from_user.id}@example.com"
@@ -169,12 +172,10 @@ async def confirm_prompt(call: types.CallbackQuery):
 
 @dp.callback_query(lambda call: call.data == "confirm_new_config")
 async def process_confirm_new_config(call: types.CallbackQuery):
-    # Удаляем окно подтверждения
     try:
         await bot.delete_message(call.message.chat.id, call.message.message_id)
     except Exception as e:
         logger.error(f"Ошибка при удалении сообщения подтверждения: {e}")
-    # Показываем сообщение о генерации новой ссылки
     msg = await call.message.answer("Готовим вашу персональную ссылку...")
     await add_ephemeral(call.message.chat.id, msg.message_id)
     try:
