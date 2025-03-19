@@ -28,8 +28,7 @@ Configuration.secret_key = os.getenv("YOOKASSA_SECRET_KEY")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Храним список ID эфемерных сообщений для каждого чата
-ephemeral_messages = {}  # ключ: chat_id, значение: список message_id
+ephemeral_messages = {}  # key: chat_id, value: list of message_id
 
 async def add_ephemeral(chat_id: int, message_id: int):
     if chat_id not in ephemeral_messages:
@@ -154,7 +153,6 @@ async def process_get_config(call: types.CallbackQuery):
             reply_markup=close_keyboard()
         )
 
-# Обработка подтверждения создания новой ссылки
 @dp.callback_query(lambda call: call.data == "new_config_confirm")
 async def confirm_prompt(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
@@ -169,30 +167,34 @@ async def confirm_prompt(call: types.CallbackQuery):
     await add_ephemeral(call.message.chat.id, msg.message_id)
     await call.answer()
 
-# Обработка выбора "Продолжить" – показываем сообщение "Готовим вашу персональную ссылку..." и генерируем новый конфиг
 @dp.callback_query(lambda call: call.data == "confirm_new_config")
 async def process_confirm_new_config(call: types.CallbackQuery):
-    # Сохраняем сообщение о генерации и оставляем его видимым
+    # Удаляем окно подтверждения
+    try:
+        await bot.delete_message(call.message.chat.id, call.message.message_id)
+    except Exception as e:
+        logger.error(f"Ошибка при удалении сообщения подтверждения: {e}")
+    # Показываем сообщение о генерации новой ссылки
     msg = await call.message.answer("Готовим вашу персональную ссылку...")
     await add_ephemeral(call.message.chat.id, msg.message_id)
     try:
         await delete_vpn_config(call.from_user.id)
-        # Генерируем новую конфигурацию
         new_config = await get_vpn_config(call.from_user.id)
-        # Редактируем сообщение, заменяя текст на окончательный результат
         new_text = (
             "Вставьте эту ссылку в Hiddify:\n"
             f"<code>{new_config}</code>\n"
             "(Нажмите на текст ссылки, чтобы её скопировать)"
         )
-        await bot.edit_message_text(chat_id=call.message.chat.id,
-                                    message_id=msg.message_id,
-                                    text=new_text,
-                                    parse_mode="HTML",
-                                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                                        [InlineKeyboardButton(text="Новая ссылка", callback_data="new_config_confirm"),
-                                         InlineKeyboardButton(text="Закрыть", callback_data="close")]
-                                    ]))
+        await bot.edit_message_text(
+            chat_id=call.message.chat.id,
+            message_id=msg.message_id,
+            text=new_text,
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="Новая ссылка", callback_data="new_config_confirm"),
+                 InlineKeyboardButton(text="Закрыть", callback_data="close")]
+            ])
+        )
     except Exception as e:
         await call.message.answer(
             f"Ошибка при генерации новой конфигурации: {e}",
@@ -200,7 +202,6 @@ async def process_confirm_new_config(call: types.CallbackQuery):
         )
     await call.answer()
 
-# Обработка выбора "Назад" – возвращаемся к предыдущему экрану с конфигурацией
 @dp.callback_query(lambda call: call.data == "cancel_new_config")
 async def process_cancel_new_config(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
