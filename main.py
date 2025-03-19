@@ -65,11 +65,14 @@ def subscription_action_keyboard(button_text: str) -> InlineKeyboardMarkup:
          InlineKeyboardButton(text="Закрыть", callback_data="close")]
     ])
 
+# Обновлённая клавиатура для выбора тарифного плана подписки.
+# Изменены тексты кнопок на:
+# "1 месяц (490 руб/мес)", "6 месяцев (399 руб/мес)", "12 месяцев (299 руб/мес)"
 def subscription_packages_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="1 месяц (490 ₽)", callback_data="package_1")],
-        [InlineKeyboardButton(text="6 месяцев (2394 ₽)", callback_data="package_6")],
-        [InlineKeyboardButton(text="12 месяцев (3588 ₽)", callback_data="package_12")]
+        [InlineKeyboardButton(text="1 месяц (490 руб/мес)", callback_data="package_1")],
+        [InlineKeyboardButton(text="6 месяцев (399 руб/мес)", callback_data="package_6")],
+        [InlineKeyboardButton(text="12 месяцев (299 руб/мес)", callback_data="package_12")]
     ])
 
 def other_keyboard() -> InlineKeyboardMarkup:
@@ -247,7 +250,8 @@ async def process_other_options(call: types.CallbackQuery):
 @dp.callback_query(lambda call: call.data == "buy_subscription")
 async def process_buy_subscription(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
-    sent = await call.message.answer("Выберите тариф подписки:", reply_markup=subscription_packages_keyboard())
+    # Изменён текст сообщения на "Выберите план" вместо предыдущего варианта
+    sent = await call.message.answer("Выберите план", reply_markup=subscription_packages_keyboard())
     await add_ephemeral(call.message.chat.id, sent.message_id)
     try:
         await call.answer()
