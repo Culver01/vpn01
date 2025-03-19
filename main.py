@@ -13,7 +13,7 @@ from server_manager import add_vpn_user, remove_vpn_user
 from servers import servers_list
 from database import get_subscription, update_subscription, delete_subscription, get_expired_subscriptions
 from payment import create_payment_session  # Функция создания платежной сессии
-from config_provider import get_vpn_config, delete_vpn_config  # Функции кэширования VPN-конфигов
+from config_provider import get_vpn_config, delete_vpn_config  # Функции для кэширования VPN-конфигов
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -100,7 +100,7 @@ async def cmd_start(message: types.Message):
 async def process_get_config(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
     try:
-        # Получаем сохранённый конфиг из базы или генерируем новый, если его нет
+        # Получаем сохранённый конфиг или генерируем новый, если его нет
         cached_config = await get_vpn_config(call.from_user.id)
         if cached_config:
             kb = InlineKeyboardMarkup(inline_keyboard=[

@@ -36,7 +36,7 @@ async def get_vpn_config(user_id: int) -> str:
 async def delete_vpn_config(user_id: int):
     """
     Удаляет сохранённую VPN-конфигурацию для данного пользователя из базы данных.
-    Это используется для принудительной регенерации новой конфигурации.
+    Используется для принудительной регенерации.
     """
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM public.vpn_configs WHERE user_id = $1", user_id)
