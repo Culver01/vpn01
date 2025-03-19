@@ -18,18 +18,20 @@ from config_provider import get_vpn_config, delete_vpn_config
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Загружаем переменные окружения из token.env
 load_dotenv("token.env")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
+# Настройка YooKassa
 Configuration.account_id = os.getenv("YOOKASSA_SHOP_ID")
 Configuration.secret_key = os.getenv("YOOKASSA_SECRET_KEY")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Используем словарь для хранения списка ID эфемерных сообщений для каждого чата
-ephemeral_messages = {}
+# Для хранения списка ID эфемерных сообщений для каждого чата
+ephemeral_messages = {}  # key: chat_id, value: list of message_id
 
 async def add_ephemeral(chat_id: int, message_id: int):
     if chat_id not in ephemeral_messages:
@@ -89,8 +91,10 @@ async def process_get_config(call: types.CallbackQuery):
     try:
         cached_config = await get_vpn_config(call.from_user.id)
         if cached_config:
+            # Клавиатура с двумя кнопками: "Новая ссылка" и "Закрыть"
             kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="Новая ссылка", callback_data="new_config")]
+                [InlineKeyboardButton(text="Новая ссылка", callback_data="new_config_confirm"),
+                 InlineKeyboardButton(text="Закрыть", callback_data="close")]
             ])
             msg = await call.message.answer(
                 "Вставьте эту ссылку в Hiddify:\n"
@@ -133,7 +137,8 @@ async def process_get_config(call: types.CallbackQuery):
             )
             await save_config(call.from_user.id, subscription_link)
             kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="Новая ссылка", callback_data="new_config")]
+                [InlineKeyboardButton(text="Новая ссылка", callback_data="new_config_confirm"),
+                 InlineKeyboardButton(text="Закрыть", callback_data="close")]
             ])
             sent = await call.message.answer(
                 "Вставьте эту ссылку в Hiddify:\n"
@@ -150,8 +155,24 @@ async def process_get_config(call: types.CallbackQuery):
             reply_markup=close_keyboard()
         )
 
-@dp.callback_query(lambda call: call.data == "new_config")
-async def process_new_config(call: types.CallbackQuery):
+# Обработка подтверждения генерации новой ссылки (открытие окна с подтверждением)
+@dp.callback_query(lambda call: call.data == "new_config_confirm")
+async def confirm_prompt(call: types.CallbackQuery):
+    await delete_ephemeral(call.message.chat.id)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Продолжить", callback_data="confirm_new_config"),
+         InlineKeyboardButton(text="Назад", callback_data="cancel_new_config")]
+    ])
+    msg = await call.message.answer(
+        "После генерации новой ссылки предыдущая ссылка перестанет работать. Вы уверены, что хотите создать новую ссылку?",
+        reply_markup=kb
+    )
+    await add_ephemeral(call.message.chat.id, msg.message_id)
+    await call.answer()
+
+# Обработка выбора "Продолжить" – генерируем новую ссылку
+@dp.callback_query(lambda call: call.data == "confirm_new_config")
+async def process_confirm_new_config(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
     try:
         await delete_vpn_config(call.from_user.id)
@@ -161,6 +182,14 @@ async def process_new_config(call: types.CallbackQuery):
             f"Ошибка при генерации новой конфигурации: {e}",
             reply_markup=close_keyboard()
         )
+    await call.answer()
+
+# Обработка выбора "Назад" – возвращаем предыдущий экран с конфигурацией
+@dp.callback_query(lambda call: call.data == "cancel_new_config")
+async def process_cancel_new_config(call: types.CallbackQuery):
+    await delete_ephemeral(call.message.chat.id)
+    await process_get_config(call)
+    await call.answer()
 
 @dp.callback_query(lambda call: call.data == "subscription")
 async def process_subscription(call: types.CallbackQuery):
