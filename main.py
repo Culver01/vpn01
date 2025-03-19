@@ -72,7 +72,7 @@ def subscription_action_keyboard(button_text: str) -> InlineKeyboardMarkup:
         ]
     ])
 
-# Клавиатура выбора пакета подписки
+# Клавиатура выбора тарифа подписки
 def subscription_packages_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="1 месяц (490 ₽)", callback_data="package_1")],
@@ -115,7 +115,6 @@ async def process_get_config(call: types.CallbackQuery):
             )
             await add_ephemeral(call.message.chat.id, msg.message_id)
         else:
-            # Если конфигурации нет, генерируем её
             temp_msg = await call.message.answer("Готовим вашу персональную конфигурацию...")
             await add_ephemeral(call.message.chat.id, temp_msg.message_id)
 

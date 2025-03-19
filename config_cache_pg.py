@@ -8,7 +8,7 @@ pool = None
 async def init_db():
     """
     Инициализирует пул подключений к PostgreSQL, используя DATABASE_URL,
-    и создает таблицу public.vpn_configs, если она еще не существует.
+    и создаёт таблицу public.vpn_configs, если она ещё не существует.
     """
     global pool
     database_url = os.getenv("DATABASE_URL")
@@ -26,7 +26,7 @@ async def init_db():
 
 async def get_active_config(user_id: int) -> str:
     """
-    Возвращает сохраненную ссылку (subscription_link) для данного user_id, если она существует.
+    Возвращает сохранённую ссылку (subscription_link) для данного user_id, если она существует.
     """
     global pool
     async with pool.acquire() as conn:

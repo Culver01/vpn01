@@ -17,7 +17,7 @@ async def get_vpn_config(user_id: int) -> str:
 
     new_uuid = str(uuid.uuid4())
     client_email = f"user-{user_id}@example.com"
-    server = servers_list[0]  # Выбираем первый сервер; можно доработать логику выбора
+    server = servers_list[0]  # Выбираем первый сервер; при необходимости адаптируйте логику выбора
 
     loop = asyncio.get_running_loop()
     success = await loop.run_in_executor(None, add_vpn_user, server, new_uuid, client_email)
