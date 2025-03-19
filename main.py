@@ -7,16 +7,15 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import (
     InlineKeyboardMarkup, InlineKeyboardButton,
-    ReplyKeyboardMarkup, KeyboardButton
 )
 from dotenv import load_dotenv
-from yookassa import Configuration, Payment
+from yookassa import Configuration
 
 from server_manager import add_vpn_user, remove_vpn_user
 from servers import servers_list
 from database import get_subscription, update_subscription, delete_subscription, get_expired_subscriptions
-from payment import create_payment_session  # функция создания платежной сессии из payment.py
-from config_provider import get_vpn_config   # функция выдачи VPN-конфига из config_provider.py
+from payment import create_payment_session  # Функция создания платежной сессии
+from config_provider import get_vpn_config, delete_vpn_config  # Функции кэширования VPN-конфигов
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -33,8 +32,8 @@ Configuration.secret_key = os.getenv("YOOKASSA_SECRET_KEY")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Вместо хранения одного message_id используем список для каждого chat_id
-ephemeral_messages = {}  # ключ: chat_id, значение: список message_id
+# Для хранения ID всех эфемерных сообщений в чате (используем список для каждого chat_id)
+ephemeral_messages = {}  # key: chat_id, value: list of message_ids
 
 async def add_ephemeral(chat_id: int, message_id: int):
     if chat_id not in ephemeral_messages:
@@ -60,13 +59,13 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
         ]
     ])
 
-# Клавиатура "Закрыть" для эфемерных сообщений
+# Клавиатура "Закрыть"
 def close_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Закрыть", callback_data="close")]
     ])
 
-# Клавиатура для сообщения с подпиской (с кнопкой покупки/продления и "Закрыть")
+# Клавиатура для подписки (покупка/продление)
 def subscription_action_keyboard(button_text: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -75,7 +74,7 @@ def subscription_action_keyboard(button_text: str) -> InlineKeyboardMarkup:
         ]
     ])
 
-# Клавиатура выбора пакета подписки (вертикальное расположение)
+# Клавиатура выбора пакета подписки
 def subscription_packages_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="1 месяц (490 ₽)", callback_data="package_1")],
@@ -92,7 +91,7 @@ def other_keyboard() -> InlineKeyboardMarkup:
          InlineKeyboardButton(text="Закрыть", callback_data="close")]
     ])
 
-# Обработка команды /start – сразу выводим главное меню
+# Обработка команды /start – выводим главное меню
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     await delete_ephemeral(message.chat.id)
@@ -101,22 +100,25 @@ async def cmd_start(message: types.Message):
 # Обработка кнопки "VPN"
 @dp.callback_query(lambda call: call.data == "get_config")
 async def process_get_config(call: types.CallbackQuery):
-    # Удаляем все предыдущие эфемерные сообщения
     await delete_ephemeral(call.message.chat.id)
     try:
-        # Пытаемся получить конфиг из кэша (базы данных)
+        # Пытаемся получить сохранённый конфиг из кэша
         cached_config = await get_vpn_config(call.from_user.id)
         if cached_config:
+            # Если конфиг найден, отправляем его с кнопкой "Новая ссылка"
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="Новая ссылка", callback_data="new_config")]
+            ])
             msg = await call.message.answer(
                 "Вставьте эту ссылку в Hiddify:\n"
                 f"<code>{cached_config}</code>\n"
                 "(Нажмите на текст ссылки, чтобы её скопировать)",
                 parse_mode="HTML",
-                reply_markup=close_keyboard()
+                reply_markup=kb
             )
             await add_ephemeral(call.message.chat.id, msg.message_id)
         else:
-            # Если конфиг не найден, выводим сообщение о генерации
+            # Если конфигурации нет, показываем сообщение о генерации
             temp_msg = await call.message.answer("Готовим вашу персональную конфигурацию...")
             await add_ephemeral(call.message.chat.id, temp_msg.message_id)
 
@@ -136,7 +138,6 @@ async def process_get_config(call: types.CallbackQuery):
             loop = asyncio.get_running_loop()
             success = await loop.run_in_executor(None, add_vpn_user, server, new_uuid, client_email)
             await delete_ephemeral(call.message.chat.id)
-
             if not success:
                 sent = await call.message.answer("Ошибка при добавлении VPN пользователя.", reply_markup=close_keyboard())
                 await add_ephemeral(call.message.chat.id, sent.message_id)
@@ -148,20 +149,42 @@ async def process_get_config(call: types.CallbackQuery):
                 f"&fp=chrome&sni={server['sni']}&sid=&spx=%2F&flow=xtls-rprx-vision"
                 f"#{server['name']}"
             )
-            # Сохраняем новый конфиг в базе данных
-            await save_config(call.from_user.id, subscription_link)
+            # Здесь предполагается, что end_date берется из subscription_info, чтобы конфиг был действителен до конца подписки.
+            end_date = subscription_info.get("end_date")  # end_date из подписки
+            # Сохраняем новый конфиг в базе (включая end_date, если требуется)
+            await save_config(call.from_user.id, subscription_link)  # Если save_config обновлена для хранения end_date, передавайте её
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="Новая ссылка", callback_data="new_config")]
+            ])
             sent = await call.message.answer(
                 "Вставьте эту ссылку в Hiddify:\n"
                 f"<code>{subscription_link}</code>\n"
                 "(Нажмите на текст ссылки, чтобы её скопировать)",
                 parse_mode="HTML",
-                reply_markup=close_keyboard()
+                reply_markup=kb
             )
             await add_ephemeral(call.message.chat.id, sent.message_id)
     except Exception as e:
         await delete_ephemeral(call.message.chat.id)
         await call.message.answer(
             f"Ошибка при получении конфигурации: {e}",
+            reply_markup=close_keyboard()
+        )
+
+# Обработка кнопки "Новая ссылка" – форсированная регенерация конфигурации
+@dp.callback_query(lambda call: call.data == "new_config")
+async def process_new_config(call: types.CallbackQuery):
+    await delete_ephemeral(call.message.chat.id)
+    try:
+        # Удаляем кэшированную конфигурацию для пользователя (форсируем генерацию нового конфига)
+        await delete_vpn_config(call.from_user.id)
+        # После удаления вызываем get_vpn_config – он не найдет сохраненную конфигурацию и сгенерирует новую
+        # Но в данном случае, поскольку логика генерации реализована в process_get_config, можно вызвать её напрямую.
+        # Либо повторно отправить сообщение "VPN". Для простоты, переиспользуем process_get_config:
+        await process_get_config(call)
+    except Exception as e:
+        await call.message.answer(
+            f"Ошибка при генерации новой конфигурации: {e}",
             reply_markup=close_keyboard()
         )
 
