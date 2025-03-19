@@ -1,31 +1,24 @@
 import uuid
 import asyncio
-from config_cache_pg import get_active_config, save_config
+from config_cache_pg import get_active_config, save_config, pool
 from server_manager import add_vpn_user
 from servers import servers_list
-
 
 async def get_vpn_config(user_id: int) -> str:
     """
     Возвращает VPN-конфиг для пользователя.
-    Если для данного user_id уже есть сохранённый конфиг в базе,
-    он возвращается. Иначе генерируется новый конфиг, добавляется пользователь
-    на VPN-сервер, сохраняется в базе и возвращается.
-
-    :param user_id: Идентификатор пользователя Telegram.
-    :return: Ссылка на VPN-конфиг.
+    Если для данного user_id уже есть сохранённый конфиг, он возвращается.
+    Иначе генерируется новый конфиг, добавляется пользователь на VPN-сервер,
+    сохраняется в базе и возвращается.
     """
-    # Проверяем, есть ли уже сохранённый конфиг для пользователя
-    cached_config = await get_active_config(user_id)
-    if cached_config:
-        return cached_config
+    cached = await get_active_config(user_id)
+    if cached:
+        return cached
 
-    # Если конфига нет, генерируем новый
     new_uuid = str(uuid.uuid4())
     client_email = f"user-{user_id}@example.com"
-    server = servers_list[0]  # Берём первый сервер из списка. При необходимости адаптируйте логику выбора.
+    server = servers_list[0]  # Выбираем первый сервер; можно доработать логику выбора
 
-    # Запускаем добавление VPN-пользователя в отдельном потоке (если add_vpn_user синхронная)
     loop = asyncio.get_running_loop()
     success = await loop.run_in_executor(None, add_vpn_user, server, new_uuid, client_email)
     if not success:
@@ -37,7 +30,13 @@ async def get_vpn_config(user_id: int) -> str:
         f"&fp=chrome&sni={server['sni']}&sid=&spx=%2F&flow=xtls-rprx-vision"
         f"#{server['name']}"
     )
-
-    # Сохраняем новый конфиг в базе (PostgreSQL)
     await save_config(user_id, subscription_link)
     return subscription_link
+
+async def delete_vpn_config(user_id: int):
+    """
+    Удаляет сохранённую VPN-конфигурацию для данного пользователя из базы данных.
+    Это используется для принудительной регенерации новой конфигурации.
+    """
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM public.vpn_configs WHERE user_id = $1", user_id)

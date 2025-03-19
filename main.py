@@ -5,9 +5,7 @@ import uuid
 from datetime import datetime
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-from aiogram.types import (
-    InlineKeyboardMarkup, InlineKeyboardButton,
-)
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
 from yookassa import Configuration
 
@@ -32,8 +30,8 @@ Configuration.secret_key = os.getenv("YOOKASSA_SECRET_KEY")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Для хранения ID всех эфемерных сообщений в чате (используем список для каждого chat_id)
-ephemeral_messages = {}  # key: chat_id, value: list of message_ids
+# Используем словарь, где для каждого chat_id хранится список message_id эфемерных сообщений
+ephemeral_messages = {}  # ключ: chat_id, значение: список message_id
 
 async def add_ephemeral(chat_id: int, message_id: int):
     if chat_id not in ephemeral_messages:
@@ -49,7 +47,7 @@ async def delete_ephemeral(chat_id: int):
                 logger.error(f"Ошибка при удалении эфемерного сообщения: {e}")
         del ephemeral_messages[chat_id]
 
-# Главное меню – всегда остаётся в чате
+# Главное меню
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -65,7 +63,7 @@ def close_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="Закрыть", callback_data="close")]
     ])
 
-# Клавиатура для подписки (покупка/продление)
+# Клавиатура для подписки
 def subscription_action_keyboard(button_text: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -102,10 +100,9 @@ async def cmd_start(message: types.Message):
 async def process_get_config(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
     try:
-        # Пытаемся получить сохранённый конфиг из кэша
+        # Получаем сохранённый конфиг из базы или генерируем новый, если его нет
         cached_config = await get_vpn_config(call.from_user.id)
         if cached_config:
-            # Если конфиг найден, отправляем его с кнопкой "Новая ссылка"
             kb = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="Новая ссылка", callback_data="new_config")]
             ])
@@ -118,7 +115,7 @@ async def process_get_config(call: types.CallbackQuery):
             )
             await add_ephemeral(call.message.chat.id, msg.message_id)
         else:
-            # Если конфигурации нет, показываем сообщение о генерации
+            # Если конфигурации нет, генерируем её
             temp_msg = await call.message.answer("Готовим вашу персональную конфигурацию...")
             await add_ephemeral(call.message.chat.id, temp_msg.message_id)
 
@@ -149,10 +146,7 @@ async def process_get_config(call: types.CallbackQuery):
                 f"&fp=chrome&sni={server['sni']}&sid=&spx=%2F&flow=xtls-rprx-vision"
                 f"#{server['name']}"
             )
-            # Здесь предполагается, что end_date берется из subscription_info, чтобы конфиг был действителен до конца подписки.
-            end_date = subscription_info.get("end_date")  # end_date из подписки
-            # Сохраняем новый конфиг в базе (включая end_date, если требуется)
-            await save_config(call.from_user.id, subscription_link)  # Если save_config обновлена для хранения end_date, передавайте её
+            await save_config(call.from_user.id, subscription_link)
             kb = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="Новая ссылка", callback_data="new_config")]
             ])
@@ -176,11 +170,7 @@ async def process_get_config(call: types.CallbackQuery):
 async def process_new_config(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
     try:
-        # Удаляем кэшированную конфигурацию для пользователя (форсируем генерацию нового конфига)
         await delete_vpn_config(call.from_user.id)
-        # После удаления вызываем get_vpn_config – он не найдет сохраненную конфигурацию и сгенерирует новую
-        # Но в данном случае, поскольку логика генерации реализована в process_get_config, можно вызвать её напрямую.
-        # Либо повторно отправить сообщение "VPN". Для простоты, переиспользуем process_get_config:
         await process_get_config(call)
     except Exception as e:
         await call.message.answer(
