@@ -54,7 +54,7 @@ async def build_main_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     if subscription_info.get("active"):
         subscription_button = InlineKeyboardButton(text="Подписка", callback_data="subscription")
     else:
-        subscription_button = InlineKeyboardButton(text="Активация", callback_data="activation")
+        subscription_button = InlineKeyboardButton(text="Подключить", callback_data="activation")
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="VPN", callback_data="get_config"),
          subscription_button,
@@ -94,8 +94,8 @@ def other_keyboard() -> InlineKeyboardMarkup:
 # Содержит кнопки "Планы" и "Преимущества" (без кнопки "назад")
 def vpn_no_subscription_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Планы", callback_data="buy_subscription")],
-        [InlineKeyboardButton(text="Преимущества", callback_data="advantages")]
+        [InlineKeyboardButton(text="Тарифы", callback_data="buy_subscription")],
+        [InlineKeyboardButton(text="Почему стоит выбрать нас?", callback_data="advantages")]
     ])
 
 # Клавиатура с единственной кнопкой "назад", которая возвращает в VPN-окно
