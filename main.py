@@ -401,6 +401,15 @@ async def cmd_subadd(message: types.Message):
     success = await update_subscription(target_id, months)
     if success:
         await message.answer(f"Подписка выдана пользователю {target_id} на {months} месяц(ев).")
+        try:
+            await delete_ephemeral(target_id)
+        except Exception as e:
+            logger.error(f"Ошибка при удалении эфемерного меню для пользователя {target_id}: {e}")
+        kb = await build_main_menu_keyboard(target_id)
+        try:
+            await bot.send_message(target_id, "Ваше главное меню обновлено:", reply_markup=kb)
+        except Exception as e:
+            logger.error(f"Ошибка при отправке обновленного главного меню для пользователя {target_id}: {e}")
     else:
         await message.answer("Ошибка при выдаче подписки.")
 
@@ -421,6 +430,15 @@ async def cmd_subdel(message: types.Message):
     success = await delete_subscription(target_id)
     if success:
         await message.answer(f"Подписка удалена у пользователя {target_id}.")
+        try:
+            await delete_ephemeral(target_id)
+        except Exception as e:
+            logger.error(f"Ошибка при удалении эфемерного меню для пользователя {target_id}: {e}")
+        kb = await build_main_menu_keyboard(target_id)
+        try:
+            await bot.send_message(target_id, "Ваше главное меню обновлено:", reply_markup=kb)
+        except Exception as e:
+            logger.error(f"Ошибка при отправке обновленного главного меню для пользователя {target_id}: {e}")
     else:
         await message.answer("Ошибка при удалении подписки.")
 
