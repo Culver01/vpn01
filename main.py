@@ -125,6 +125,60 @@ async def cmd_start(message: types.Message):
         ])
         await message.answer(text, reply_markup=keyboard)
 
+@dp.callback_query(lambda call: call.data == "info_placeholder")
+async def process_info_placeholder(call: types.CallbackQuery):
+    await delete_ephemeral(call.message.chat.id)
+    info_text = (
+        "NEOR — это VPN-сервера, к которым вы подключаетесь через Hiddify.\n\n"
+        "Мы не используем учётки, не собираем данные и не показываем рекламу.\n"
+        "Вы просто получаете конфиг. И подключаетесь.\n\n"
+        "Надёжно. Тихо. Быстро."
+    )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Подробнее", callback_data="info_detailed"),
+         InlineKeyboardButton(text="Тарифы", callback_data="buy_subscription")]
+    ])
+    sent = await call.message.answer(info_text, reply_markup=keyboard)
+    await add_ephemeral(call.message.chat.id, sent.message_id)
+    await call.answer()
+
+@dp.callback_query(lambda call: call.data == "info_detailed")
+async def process_info_detailed(call: types.CallbackQuery):
+    await delete_ephemeral(call.message.chat.id)
+    detailed_text = (
+        "NEOR это:\n"
+        "— Серверы в Европе\n"
+        "— Высокая скорость и стабильность\n"
+        "— Современные технологии обхода блокировок\n"
+        "— Подключение до 8 устройств\n"
+        "— Неограниченный трафик\n"
+        "— Без трекеров и логов"
+    )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Назад", callback_data="info_back"),
+         InlineKeyboardButton(text="Тарифы", callback_data="buy_subscription")]
+    ])
+    sent = await call.message.answer(detailed_text, reply_markup=keyboard)
+    await add_ephemeral(call.message.chat.id, sent.message_id)
+    await call.answer()
+
+@dp.callback_query(lambda call: call.data == "info_back")
+async def process_info_back(call: types.CallbackQuery):
+    await delete_ephemeral(call.message.chat.id)
+    info_text = (
+        "NEOR — это VPN-сервера, к которым вы подключаетесь через Hiddify.\n\n"
+        "Мы не используем учётки, не собираем данные и не показываем рекламу.\n"
+        "Вы просто получаете конфиг. И подключаетесь.\n\n"
+        "Надёжно. Тихо. Быстро."
+    )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Подробнее", callback_data="info_detailed"),
+         InlineKeyboardButton(text="Тарифы", callback_data="buy_subscription")]
+    ])
+    sent = await call.message.answer(info_text, reply_markup=keyboard)
+    await add_ephemeral(call.message.chat.id, sent.message_id)
+    await call.answer()
+
 @dp.callback_query(lambda call: call.data == "activation")
 async def process_activation(call: types.CallbackQuery):
     """
