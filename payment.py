@@ -59,12 +59,14 @@ def create_payment_session(user_id: int, months: int, return_url: str, cancel_ur
         "payment_method_data": {"type": "bank_card"},
         "confirmation": {
             "type": "redirect",
-            "return_url": return_url  # Глубокая ссылка для возврата в бота
+            "return_url": return_url,  # Глубокая ссылка для возврата в бота
+            "cancel_url": cancel_url   # URL для отмены оплаты
         },
         "capture": True,
         "description": f"Оплата подписки VPN на {months} месяц(ев)",
         "client_reference_id": str(user_id),
-        "receipt": receipt
+        "receipt": receipt,
+        "metadata": {"months": months}
     }
 
     payment = Payment.create(payload, str(uuid.uuid4()))

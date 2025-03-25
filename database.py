@@ -2,6 +2,10 @@ import asyncpg
 import os
 import asyncio
 from dotenv import load_dotenv
+from datetime import datetime, timedelta
+import logging
+
+logger = logging.getLogger(__name__)
 
 load_dotenv("token.env")
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -27,26 +31,20 @@ async def get_subscription(user_id: int) -> dict:
         return {"active": False, "end_date": None}
 
 async def update_subscription(user_id: int, months: int) -> bool:
-    """
-    Выдает подписку пользователю, обновляя или создавая запись в базе.
-    Подписка будет действительна в течение указанного количества месяцев.
+    new_end_date = datetime.now() + timedelta(days=30 * months)
+
+    query = """
+    INSERT INTO subscriptions (user_id, active, end_date)
+    VALUES ($1, TRUE, $2)
+    ON CONFLICT (user_id)
+    DO UPDATE SET active = TRUE, end_date = $2
     """
     try:
-        conn = await asyncpg.connect(DATABASE_URL)
-        months_str = str(months)
-        await conn.execute(
-            """
-            INSERT INTO subscriptions (user_id, active, end_date)
-            VALUES ($1, TRUE, now() + ($2 || ' months')::interval)
-            ON CONFLICT (user_id) DO UPDATE 
-                SET active = TRUE, end_date = now() + ($2 || ' months')::interval
-            """,
-            user_id, months_str
-        )
-        await conn.close()
+        await db.execute(query, (user_id, new_end_date))
+        logger.info(f"Подписка для пользователя {user_id} обновлена до {new_end_date}")
         return True
     except Exception as e:
-        print(f"Ошибка обновления подписки: {e}")
+        logger.error(f"Ошибка обновления подписки для пользователя {user_id}: {e}")
         return False
 
 async def delete_subscription(user_id: int) -> bool:
