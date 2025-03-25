@@ -47,6 +47,52 @@ async def delete_ephemeral(chat_id: int):
                 logger.error(f"Ошибка при удалении эфемерного сообщения: {e}")
         del ephemeral_messages[chat_id]
 
+def get_welcome_menu() -> (str, InlineKeyboardMarkup):
+    """Возвращает текст и клавиатуру приветственного меню для пользователей без подписки."""
+    text = (
+        "Привет. Это NEOR.\n\n"
+        "Здесь вы получаете доступ к защищённым VPN-серверам.\n"
+        "Без рекламы, логов и лишних слов.\n\n"
+        "Подключение занимает меньше минуты.\n"
+        "Нужен только Hiddify и наш конфиг."
+    )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Что это такое", callback_data="info")],
+        [InlineKeyboardButton(text="Подключиться", callback_data="buy_subscription")]
+    ])
+    return text, keyboard
+
+def get_info_menu() -> (str, InlineKeyboardMarkup):
+    """Возвращает базовое информационное меню."""
+    text = (
+        "NEOR — это VPN-сервера, к которым вы подключаетесь через Hiddify.\n\n"
+        "Мы не используем учётки, не собираем данные и не показываем рекламу.\n"
+        "Вы просто получаете конфиг. И подключаетесь.\n\n"
+        "Надёжно. Тихо. Быстро."
+    )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Подробнее", callback_data="info_detailed"),
+         InlineKeyboardButton(text="Тарифы", callback_data="buy_subscription")]
+    ])
+    return text, keyboard
+
+def get_info_detailed_menu() -> (str, InlineKeyboardMarkup):
+    """Возвращает подробное информационное меню с кнопкой [Назад], возвращающей к базовому информационному меню."""
+    text = (
+        "NEOR это:\n"
+        "— Серверы в Европе\n"
+        "— Высокая скорость и стабильность\n"
+        "— Современные технологии обхода блокировок\n"
+        "— Подключение до 8 устройств\n"
+        "— Неограниченный трафик\n"
+        "— Без трекеров и логов"
+    )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Назад", callback_data="info"),
+         InlineKeyboardButton(text="Тарифы", callback_data="buy_subscription")]
+    ])
+    return text, keyboard
+
 # Асинхронная функция для динамического формирования главного меню.
 # Если у пользователя нет активной подписки, кнопка "Подписка" заменяется на "Активация".
 async def build_main_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
@@ -112,70 +158,22 @@ async def cmd_start(message: types.Message):
         kb = await build_main_menu_keyboard(message.from_user.id)
         await message.answer("Главное меню:", reply_markup=kb)
     else:
-        text = (
-            "Привет. Это NEOR.\n\n"
-            "Здесь вы получаете доступ к защищённым VPN-серверами.\n"
-            "Без рекламы, логов и лишних слов.\n\n"
-            "Подключение занимает меньше минуты.\n"
-            "Нужен только Hiddify и наш конфиг."
-        )
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Что это такое", callback_data="info_placeholder")],
-            [InlineKeyboardButton(text="Подключиться", callback_data="buy_subscription")]
-        ])
+        text, keyboard = get_welcome_menu()
         await message.answer(text, reply_markup=keyboard)
 
-@dp.callback_query(lambda call: call.data == "info_placeholder")
-async def process_info_placeholder(call: types.CallbackQuery):
+@dp.callback_query(lambda call: call.data == "info")
+async def process_info(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
-    info_text = (
-        "NEOR — это VPN-сервера, к которым вы подключаетесь через Hiddify.\n\n"
-        "Мы не используем учётки, не собираем данные и не показываем рекламу.\n"
-        "Вы просто получаете конфиг. И подключаетесь.\n\n"
-        "Надёжно. Тихо. Быстро."
-    )
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Подробнее", callback_data="info_detailed"),
-         InlineKeyboardButton(text="Тарифы", callback_data="buy_subscription")]
-    ])
-    sent = await call.message.answer(info_text, reply_markup=keyboard)
+    text, keyboard = get_info_menu()
+    sent = await call.message.answer(text, reply_markup=keyboard)
     await add_ephemeral(call.message.chat.id, sent.message_id)
     await call.answer()
 
 @dp.callback_query(lambda call: call.data == "info_detailed")
 async def process_info_detailed(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
-    detailed_text = (
-        "NEOR это:\n"
-        "— Серверы в Европе\n"
-        "— Высокая скорость и стабильность\n"
-        "— Современные технологии обхода блокировок\n"
-        "— Подключение до 8 устройств\n"
-        "— Неограниченный трафик\n"
-        "— Без трекеров и логов"
-    )
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Назад", callback_data="info_back"),
-         InlineKeyboardButton(text="Тарифы", callback_data="buy_subscription")]
-    ])
-    sent = await call.message.answer(detailed_text, reply_markup=keyboard)
-    await add_ephemeral(call.message.chat.id, sent.message_id)
-    await call.answer()
-
-@dp.callback_query(lambda call: call.data == "info_back")
-async def process_info_back(call: types.CallbackQuery):
-    await delete_ephemeral(call.message.chat.id)
-    info_text = (
-        "NEOR — это VPN-сервера, к которым вы подключаетесь через Hiddify.\n\n"
-        "Мы не используем учётки, не собираем данные и не показываем рекламу.\n"
-        "Вы просто получаете конфиг. И подключаетесь.\n\n"
-        "Надёжно. Тихо. Быстро."
-    )
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Подробнее", callback_data="info_detailed"),
-         InlineKeyboardButton(text="Тарифы", callback_data="buy_subscription")]
-    ])
-    sent = await call.message.answer(info_text, reply_markup=keyboard)
+    text, keyboard = get_info_detailed_menu()
+    sent = await call.message.answer(text, reply_markup=keyboard)
     await add_ephemeral(call.message.chat.id, sent.message_id)
     await call.answer()
 
