@@ -384,7 +384,6 @@ async def process_other_options(call: types.CallbackQuery):
 @dp.callback_query(lambda call: call.data == "buy_subscription")
 async def process_buy_subscription(call: types.CallbackQuery):
     await delete_ephemeral(call.message.chat.id)
-    # Изменён текст сообщения на "Выберите план" вместо предыдущего варианта
     sent = await call.message.answer("Выберите план", reply_markup=subscription_packages_keyboard())
     await add_ephemeral(call.message.chat.id, sent.message_id)
     try:
