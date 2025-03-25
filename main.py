@@ -457,6 +457,34 @@ async def cmd_subdel(message: types.Message):
     else:
         await message.answer("Ошибка при удалении подписки.")
 
+@dp.message(Command("clearhistory"))
+async def cmd_clearhistory(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        await message.answer("Нет прав для выполнения этой команды.")
+        return
+    parts = message.text.split()
+    if len(parts) != 2:
+        await message.answer("Использование: /clearhistory [userid]")
+        return
+    try:
+        target_id = int(parts[1])
+    except Exception as e:
+        await message.answer("Неверный аргумент. Используйте число для userid.")
+        return
+    # Удаляем данные подписки пользователя
+    await delete_subscription(target_id)
+    # Удаляем VPN конфигурацию, если она существует
+    try:
+        await delete_vpn_config(target_id)
+    except Exception as e:
+        logger.error(f"Ошибка при удалении конфигурации VPN для пользователя {target_id}: {e}")
+    # Удаляем эфемерные сообщения, если есть
+    try:
+        await delete_ephemeral(target_id)
+    except Exception as e:
+        logger.error(f"Ошибка при удалении эфемерного меню для пользователя {target_id}: {e}")
+    await message.answer(f"История пользователя {target_id} очищена.")
+
 async def check_expired_subscriptions():
     while True:
         try:
