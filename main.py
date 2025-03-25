@@ -123,7 +123,7 @@ def subscription_action_keyboard(button_text: str) -> InlineKeyboardMarkup:
 # "1 месяц (490 руб/мес)", "6 месяцев (399 руб/мес)", "12 месяцев (299 руб/мес)"
 def subscription_packages_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="1 месяц (490 руб/мес)", callback_data="package_1")],
+        [InlineKeyboardButton(text="1 месяц (20 руб/мес)", callback_data="package_1")],
         [InlineKeyboardButton(text="6 месяцев (399 руб/мес)", callback_data="package_6")],
         [InlineKeyboardButton(text="12 месяцев (299 руб/мес)", callback_data="package_12")]
     ])
@@ -395,7 +395,7 @@ async def process_package_selection(call: types.CallbackQuery):
     package = call.data.split("_")[1]
     if package == "1":
         months = 1
-        amount = 490.00
+        amount = 20.00
     elif package == "6":
         months = 6
         amount = 2394.00
