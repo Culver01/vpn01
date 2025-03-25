@@ -107,18 +107,23 @@ def vpn_back_keyboard() -> InlineKeyboardMarkup:
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     await delete_ephemeral(message.chat.id)
-    text = (
-        "Привет. Это NEOR.\n\n"
-        "Здесь вы получаете доступ к защищённым VPN-серверам.\n"
-        "Без рекламы, логов и лишних слов.\n\n"
-        "Подключение занимает меньше минуты.\n"
-        "Нужен только Hiddify и наш конфиг."
-    )
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Что это такое", callback_data="info_placeholder")],
-        [InlineKeyboardButton(text="Подключиться", callback_data="connect_placeholder")]
-    ])
-    await message.answer(text, reply_markup=keyboard)
+    subscription_info = await get_subscription(message.from_user.id)
+    if subscription_info and subscription_info.get("active"):
+        kb = await build_main_menu_keyboard(message.from_user.id)
+        await message.answer("Главное меню:", reply_markup=kb)
+    else:
+        text = (
+            "Привет. Это NEOR.\n\n"
+            "Здесь вы получаете доступ к защищённым VPN-серверами.\n"
+            "Без рекламы, логов и лишних слов.\n\n"
+            "Подключение занимает меньше минуты.\n"
+            "Нужен только Hiddify и наш конфиг."
+        )
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Что это такое", callback_data="info_placeholder")],
+            [InlineKeyboardButton(text="Подключиться", callback_data="connect_placeholder")]
+        ])
+        await message.answer(text, reply_markup=keyboard)
 
 @dp.callback_query(lambda call: call.data == "activation")
 async def process_activation(call: types.CallbackQuery):
