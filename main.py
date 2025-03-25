@@ -9,6 +9,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
 from yookassa import Configuration
 
+from config_cache_pg import save_config
 from server_manager import add_vpn_user, remove_vpn_user
 from servers import servers_list
 from database import get_subscription, update_subscription, delete_subscription, get_expired_subscriptions

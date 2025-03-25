@@ -40,7 +40,9 @@ async def update_subscription(user_id: int, months: int) -> bool:
     DO UPDATE SET active = TRUE, end_date = $2
     """
     try:
-        await db.execute(query, (user_id, new_end_date))
+        conn = await asyncpg.connect(DATABASE_URL)
+        await conn.execute(query, user_id, new_end_date)
+        await conn.close()
         logger.info(f"Подписка для пользователя {user_id} обновлена до {new_end_date}")
         return True
     except Exception as e:
