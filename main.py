@@ -121,7 +121,7 @@ async def cmd_start(message: types.Message):
         )
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="Что это такое", callback_data="info_placeholder")],
-            [InlineKeyboardButton(text="Подключиться", callback_data="connect_placeholder")]
+            [InlineKeyboardButton(text="Подключиться", callback_data="buy_subscription")]
         ])
         await message.answer(text, reply_markup=keyboard)
 
