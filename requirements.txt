@@ -2,3 +2,4 @@ aiogram>=3.0
 asyncpg
 python-dotenv
 yookassa
+python-dateutil
