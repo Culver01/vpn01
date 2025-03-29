@@ -3,3 +3,4 @@ asyncpg
 python-dotenv
 yookassa
 python-dateutil
+Flask
