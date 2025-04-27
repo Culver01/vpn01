@@ -1,0 +1,8 @@
+# .gitignore
+
+token.env
+__pycache__/
+*.pyc
+.env
+*.log
+*.sqlite3

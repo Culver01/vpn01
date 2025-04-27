@@ -1,6 +1,4 @@
-aiogram>=3.0
-asyncpg
+aiogram==2.25.2
 python-dotenv
-yookassa
-python-dateutil
-Flask
+asyncpg
+SQLAlchemy>=1.4
